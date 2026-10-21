@@ -42,11 +42,13 @@ still works but locations aren't shown.
 
 The plugin itself is the [`plugin/`](plugin/) folder.
 
-1. Make the game load it from this checkout. In a Windows Command Prompt (not as admin):
+1. Make the game load it from this checkout by linking it into `dev_plugins`. In PowerShell
+   (no admin needed), from the root of this checkout:
+   ```powershell
+   New-Item -ItemType Junction -Path "C:\ProgramData\Jagex\RuneScape-BETA\dev_plugins\penguin-tracker" -Target "$PWD\plugin"
    ```
-   mklink /J "C:\ProgramData\Jagex\RuneScape-BETA\dev_plugins\penguin-tracker" "<path to this checkout>\plugin"
-   ```
-   (Delete or rename any existing `dev_plugins\penguin-tracker` folder first.)
+   (Delete or rename any existing `dev_plugins\penguin-tracker` folder first. In Command Prompt
+   the equivalent is `mklink /J "...\dev_plugins\penguin-tracker" "<checkout>\plugin"`.)
 2. In game, open the console with **Alt + `** and run:
    ```
    prf
