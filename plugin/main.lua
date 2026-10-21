@@ -89,7 +89,9 @@ local function currentSpied()
 end
 
 local function redraw()
-    View.update(items, currentSpied(), status, Highlight.isEnabled())
+    local spiedNow = currentSpied()
+    Highlight.setSpied(spiedNow)
+    View.update(items, spiedNow, status, Highlight.isEnabled())
 end
 
 -- Fetch fresh locations, then redraw.
@@ -204,9 +206,11 @@ Event.VarTransmit.Subscribe(EVENT_KEY, function(e)
     local name = e.var and e.var.configName
     if name == Spied.VAR_NAME then
         -- A new spy flag means a penguin (or the bear) was just spied.
-        local old, new = tonumber(e.oldValue), tonumber(e.newValue)
-        if old and new and (new & ~old & ITEM_BITS) ~= 0 then Highlight.onSpied() end
-        redraw()
+        local old, new = math.tointeger(e.oldValue), math.tointeger(e.newValue)
+        redraw() -- updates the spy flags the highlight uses
+        if old and new and (new & ~old & ITEM_BITS) ~= 0 then
+            Highlight.onSpied(Spied.itemsIn(new & ~old))
+        end
     elseif name == CLOCK_VAR then
         Clock.onMinute(e.newValue)
         redraw()

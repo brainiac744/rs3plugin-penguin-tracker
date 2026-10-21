@@ -32,6 +32,17 @@ function Spied.readRaw()
     return nil
 end
 
+-- The item numbers (1-13) whose spy flag is set in `bits`, e.g. the flags
+-- that turned on between two values: Spied.itemsIn(new & ~old).
+function Spied.itemsIn(bits)
+    local items = {}
+    for item, bit in pairs(BIT_FOR_ITEM) do
+        if (bits >> bit) & 1 == 1 then items[#items + 1] = item end
+    end
+    table.sort(items)
+    return items
+end
+
 -- Turns the raw value into { [item] = true/false } plus the penguin count.
 function Spied.decode(raw)
     local result = {}

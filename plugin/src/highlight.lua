@@ -1,11 +1,14 @@
 -- Optional in-world highlight: draws a box around every disguised penguin
 -- near you (NPCs whose config name starts with PENG_SPY_, e.g.
 -- PENG_SPY_PUMPKIN, PENG_SPY_BARREL, PENG_SPY_SHADOW_PENGUIN).
+-- Gold = not spied yet this week, faint grey = already spied.
 --
--- NPCs don't carry their penguin number (all pumpkin penguins share one
--- config), so "already spied" is worked out like this: when your spy count
--- goes up, the penguin closest to you is the one you just spied, and it is
--- drawn faded from then on. That memory lasts while the NPC stays loaded.
+-- Which penguin is which: NPCs don't carry their penguin number (all pumpkin
+-- penguins share one config), but each penguin NPC keeps the same UID. So we
+-- keep a UID -> penguin number table, seeded with the UIDs observed in game,
+-- and learn new ones: when you spy penguin n and no penguin in view is known
+-- to be n, the nearest unrecognised penguin is taken to be n and saved.
+-- A penguin's spied state then comes straight from the game's spy flags.
 
 local Highlight = {}
 
@@ -13,6 +16,13 @@ local PREFIX = "PENG_SPY_"
 local COLOUR_UNSPIED = 0xFFC832FF -- gold
 local COLOUR_SPIED = 0x8C8C8C60   -- faint grey
 local LINE_WIDTH = 3.0
+local MAP_KEY = "penguinUIDs"     -- PersistentDB key for learned UIDs
+
+-- UIDs observed in game (Oct 2026). Learned entries override these.
+local KNOWN_UIDS = {
+    [82350] = 1, [82353] = 2, [82358] = 3, [82361] = 4, [82363] = 5, [82365] = 6,
+    [82349] = 7, [82352] = 8, [82357] = 9, [82360] = 10, [82362] = 11, [82364] = 12,
+}
 
 -- The 12 edges of a box, as pairs of corner indices (0-based).
 local BOX_LINES = {
@@ -32,11 +42,33 @@ local function report(what, err)
     end
 end
 
-local lastCount = nil -- penguins found by the last scan, to report changes
-
 local enabled = false
-local penguins = {}    -- NPCEntity list from the last scan
-local spiedUIDs = {}   -- [uid] = true for penguins spied while loaded
+local penguins = {}   -- NPCEntity list from the last scan
+local lastCount = nil -- penguins found by the last scan, to report changes
+local spied = {}      -- [penguin number] = true, from the game's spy flags
+local guessed = {}    -- [uid] = true: spied this session but number unknown
+
+-- UID -> penguin number: the known table plus anything learned (saved).
+local numberFor = {}
+for uid, n in pairs(KNOWN_UIDS) do numberFor[uid] = n end
+pcall(function()
+    local learned = PersistentDB:GetStructuredData(MAP_KEY)
+    if type(learned) == "table" then
+        -- stored as { ["82350"] = 1, ... }; numbers come back as floats
+        for k, v in pairs(learned) do
+            local uid, n = math.tointeger(tonumber(k)), math.tointeger(tonumber(v))
+            if uid and n then numberFor[uid] = n end
+        end
+    end
+end)
+
+local function saveLearned()
+    local out = {}
+    for uid, n in pairs(numberFor) do
+        if KNOWN_UIDS[uid] ~= n then out[tostring(uid)] = n end
+    end
+    pcall(function() PersistentDB:SetStructuredData(MAP_KEY, out) end)
+end
 
 local function isPenguin(npc)
     local ok, yes = pcall(function()
@@ -49,6 +81,23 @@ local function isPenguin(npc)
     return ok and yes
 end
 
+-- Your character's world position (x, z), trying the ways the API might
+-- expose it. Returns nil plus the reason if none work.
+local function myPosition()
+    local attempts = {
+        function() return Player.GetEntity().position end,
+        function() return PlayerList.Self().position end,
+        function() return Player.GetEntity().aabb.centre end,
+    }
+    local lastErr = "no position available"
+    for _, get in ipairs(attempts) do
+        local ok, p = pcall(get)
+        if ok and p and p.x and p.z then return p end
+        if not ok then lastErr = p end
+    end
+    return nil, lastErr
+end
+
 function Highlight.setEnabled(value)
     enabled = value == true
     if not enabled then penguins = {} end
@@ -58,6 +107,11 @@ end
 
 function Highlight.isEnabled()
     return enabled
+end
+
+-- The game's spy flags, { [n] = bool } (nil if unknown). Called on redraw.
+function Highlight.setSpied(flags)
+    spied = flags or {}
 end
 
 -- Refreshes the list of nearby penguins. Called a few times a second rather
@@ -80,50 +134,61 @@ function Highlight.scan()
     end
 end
 
--- Your character's world position (x, z), trying the ways the API might
--- expose it. Returns nil plus the reason if none work.
-local function myPosition()
-    local attempts = {
-        function() return Player.GetEntity().position end,
-        function() return PlayerList.Self().position end,
-        function() return Player.GetEntity().aabb.centre end,
-    }
-    local lastErr = "no position available"
-    for _, get in ipairs(attempts) do
-        local ok, p = pcall(get)
-        if ok and p and p.x and p.z then return p end
-        if not ok then lastErr = p end
-    end
-    return nil, lastErr
-end
-
--- Called when the spy count goes up: remember the nearest penguin as spied.
--- Works even with the highlight off, so turning it on later still knows.
-function Highlight.onSpied()
-    local me, why = myPosition()
-    if not me then
-        report("can't find your position", why)
-        return
-    end
+-- Called with the penguin numbers whose spy flag just turned on. Makes sure
+-- each one is linked to an NPC: if no penguin in view is known to be that
+-- number, the nearest penguin we don't recognise yet is assumed to be it.
+-- Works even with the highlight off, so the table keeps up to date.
+function Highlight.onSpied(numbers)
     local ok, err = pcall(function()
-        local bestUID, bestDist = nil, math.huge
+        local inView = {}
         for _, npc in ipairs(NPCList.All()) do
-            if isPenguin(npc) and npc.isValid then
-                local p = npc.position
-                local dx, dz = p.x - me.x, p.z - me.z
-                local d = dx * dx + dz * dz
-                if d < bestDist then bestUID, bestDist = npc.uid, d end
+            if npc.isValid and isPenguin(npc) then inView[#inView + 1] = npc end
+        end
+        for _, n in ipairs(numbers) do
+            if n <= 12 then -- the bear (13) isn't a PENG_SPY_ NPC
+                local known = false
+                for _, npc in ipairs(inView) do
+                    if numberFor[npc.uid] == n then known = true end
+                end
+                if not known then
+                    -- Nearest penguin we don't recognise. Penguins we already
+                    -- know are never reassigned, so a neighbour can't be mislabelled.
+                    local me, why = myPosition()
+                    if not me then
+                        report("can't find your position", why)
+                        return
+                    end
+                    local best, bestDist = nil, math.huge
+                    for _, npc in ipairs(inView) do
+                        if numberFor[npc.uid] == nil then
+                            local p = npc.position
+                            local d = (p.x - me.x) ^ 2 + (p.z - me.z) ^ 2
+                            if d < bestDist then best, bestDist = npc, d end
+                        end
+                    end
+                    if best then
+                        -- Forget any other UID that claimed this number.
+                        for uid, m in pairs(numberFor) do
+                            if m == n then numberFor[uid] = nil end
+                        end
+                        numberFor[best.uid] = n
+                        guessed[best.uid] = nil
+                        saveLearned()
+                        print(string.format("[penguins] highlight: learned penguin %d is NPC %d", n, best.uid))
+                    else
+                        print(string.format("[penguins] highlight: spied penguin %d, but couldn't tell which NPC it was", n))
+                    end
+                end
             end
         end
-        if bestUID then
-            spiedUIDs[bestUID] = true
-            print(string.format("[penguins] highlight: marked the penguin %.1f tiles away as spied",
-                math.sqrt(bestDist) / 512))
-        else
-            print("[penguins] highlight: spied, but no penguin NPC was in view to mark")
-        end
     end)
-    if not ok then report("marking spied penguin failed", err) end
+    if not ok then report("linking spied penguin failed", err) end
+end
+
+local function isSpiedNPC(npc)
+    local n = numberFor[npc.uid]
+    if n then return spied[n] == true end
+    return guessed[npc.uid] == true
 end
 
 -- Draws the boxes. Must be called from Event.Draw (every frame), because
@@ -143,7 +208,7 @@ function Highlight.draw()
                     Vector3.new(x0, y1, z1), Vector3.new(x1, y1, z1),
                 },
                 shapeLines = BOX_LINES,
-                colour = spiedUIDs[npc.uid] and COLOUR_SPIED or COLOUR_UNSPIED,
+                colour = isSpiedNPC(npc) and COLOUR_SPIED or COLOUR_UNSPIED,
                 lineWidth = LINE_WIDTH,
                 ignoreDepth = true, -- visible through walls and scenery
             })
@@ -152,10 +217,11 @@ function Highlight.draw()
     end
 end
 
--- Forget NPCs, e.g. after logout or world hop (their UIDs no longer apply).
+-- Forget the NPC list, e.g. after logout or world hop. (The UID table is kept:
+-- UIDs have stayed the same across logins.)
 function Highlight.reset()
     penguins = {}
-    spiedUIDs = {}
+    guessed = {}
 end
 
 return Highlight

@@ -85,8 +85,10 @@ Requires the **PrettyUI** plugin (installed automatically as a dependency from t
 | 28 | penguin 12 |
 
 Penguin NPCs are named after their disguise (`PENG_SPY_PUMPKIN`, `PENG_SPY_BARREL`, …) and don't
-carry their penguin number, so the highlight marks a penguin as spied by noting which one was
-closest to you when your spy count went up.
+carry their penguin number, but each one keeps the same NPC UID. The highlight uses a table of
+UIDs to penguin numbers (in `src/highlight.lua`) and takes each penguin's spied state from the
+flags above. If a penguin's UID isn't in the table, it's learned the first time you spy it: the
+nearest unrecognised penguin is taken to be the one you spied, and the mapping is saved.
 
 More notes on the RuneScape plugin API: [`docs/runescape-plugin-notes.md`](docs/runescape-plugin-notes.md).
 
