@@ -1,7 +1,8 @@
 -- Penguin Tracker
 -- Shows this week's penguin and bear locations from w60pengu.in and marks the
 -- ones you have already spied, read automatically from the game. Optionally
--- draws a box around disguised penguins near you.
+-- draws a box around disguised penguins near you, and warns when your
+-- penguin points are near the cap. Settings: Plugin Hub > Manage > settings icon.
 -- Open the window from the plugin's ribbon icon in the Plugins sidebar.
 
 print("[penguins] starting")
@@ -11,6 +12,8 @@ local Locations = require("src/locations")
 local Clock = require("src/clock")
 local View = require("src/ui")
 local Highlight = require("src/highlight")
+local Settings = require("src/settings")
+local Menu = require("src/menu")
 
 local EVENT_KEY = "penguin-tracker"
 local CLOCK_VAR = "CLOCK_TIME_DATE_MINUTES" -- Unix time in minutes, sent once a minute
@@ -18,7 +21,6 @@ local REFRESH_TICKS = 50 * 30               -- Logic runs 50 times a second: 30 
 local OPEN_KEY = "windowOpen"               -- remembers whether the window was open
 local GEOMETRY_KEY = "windowGeometry"       -- remembers where the window was and its size
 local SAVE_DELAY_TICKS = 25                 -- save half a second after it stops moving
-local HIGHLIGHT_KEY = "highlight"           -- remembers whether penguin boxes are on
 local ITEM_BITS = 0x1C0003FF                -- spy flags in PENG_SPY_SWITCH (see spied.lua)
 
 local items = nil       -- latest locations from the API, keyed by item number
@@ -33,15 +35,6 @@ pcall(function() wantOpen = PersistentDB:GetBool(OPEN_KEY) == true end)
 local function setWantOpen(value)
     wantOpen = value
     pcall(function() PersistentDB:SetBool(OPEN_KEY, value) end)
-end
-
--- In-world penguin boxes: off unless the player turned them on.
-pcall(function() Highlight.setEnabled(PersistentDB:GetBool(HIGHLIGHT_KEY) == true) end)
-
-local function toggleHighlight()
-    Highlight.setEnabled(not Highlight.isEnabled())
-    pcall(function() PersistentDB:SetBool(HIGHLIGHT_KEY, Highlight.isEnabled()) end)
-    Highlight.scan()
 end
 
 -- Last saved window position and size ({ x, y, width, height } or nil).
@@ -90,9 +83,18 @@ end
 
 local function redraw()
     local spiedNow = currentSpied()
+    local points = Spied.readPoints()
     Highlight.setSpied(spiedNow)
-    View.update(items, spiedNow, status, Highlight.isEnabled())
+    Highlight.setPoints(points)
+    View.update(items, spiedNow, status, points)
 end
+
+-- Settings changed in the sidebar: refresh what's shown, and look for
+-- penguins straight away if the highlight was just turned on.
+Settings.onChange(function(name, value)
+    if name == "highlight" and value then Highlight.scan() end
+    redraw()
+end)
 
 -- Fetch fresh locations, then redraw.
 local function refresh()
@@ -153,10 +155,6 @@ local function openWindow()
         end,
         confirm = confirmLocation,
         submit = submitLocation,
-        toggleHighlight = function()
-            toggleHighlight()
-            redraw()
-        end,
         geometry = savedGeometry,
     })
     if not ok then
@@ -188,6 +186,11 @@ Event.ContentLayerReady.Subscribe(EVENT_KEY, function(e)
     redraw()
 end)
 
+-- Settings page opened (Plugin Hub > Manage > settings icon).
+Event.SettingsLayerReady.Subscribe(EVENT_KEY, function(e)
+    View.buildSettingsPage(e.component)
+end)
+
 -- Logging out or changing worlds removes the window; reopen it on return
 -- if it was open before.
 Event.GameStateChanged.Subscribe(EVENT_KEY, function(e)
@@ -197,6 +200,7 @@ Event.GameStateChanged.Subscribe(EVENT_KEY, function(e)
         saveGeometry()
         View.destroyWindow()
         View.closeSidebar()
+        View.closeSettingsPage()
         Highlight.reset()
     end
 end)
@@ -211,6 +215,8 @@ Event.VarTransmit.Subscribe(EVENT_KEY, function(e)
         if old and new and (new & ~old & ITEM_BITS) ~= 0 then
             Highlight.onSpied(Spied.itemsIn(new & ~old))
         end
+    elseif name == Spied.POINTS_VAR_NAME then
+        redraw() -- points changed (spied, or turned in)
     elseif name == CLOCK_VAR then
         Clock.onMinute(e.newValue)
         redraw()
@@ -237,16 +243,22 @@ Event.Draw.Subscribe(EVENT_KEY, function()
     Highlight.draw()
 end)
 
+-- Near the points cap, optionally keep Spy-on off the left click.
+Menu.start()
+
 -- If we were enabled while already in game, restore the window now.
 if wantOpen then openWindow() end
 
 function PluginShutdown()
     Event.ContentLayerReady.Unsubscribe(EVENT_KEY)
+    Event.SettingsLayerReady.Unsubscribe(EVENT_KEY)
     Event.GameStateChanged.Unsubscribe(EVENT_KEY)
     Event.VarTransmit.Unsubscribe(EVENT_KEY)
     Event.Logic.Unsubscribe(EVENT_KEY)
     Event.Draw.Unsubscribe(EVENT_KEY)
+    Menu.stop()
     saveGeometry()
     View.destroyWindow()
     View.closeSidebar()
+    View.closeSettingsPage()
 end

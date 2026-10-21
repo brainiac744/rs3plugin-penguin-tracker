@@ -22,6 +22,23 @@ local BIT_FOR_ITEM = {
     [11] = 27, [12] = 28, [13] = 26,
 }
 
+Spied.POINTS_VAR_NAME = "PENG_SPY_PERM1"
+
+-- Unspent penguin points (bits 16-23 of PENG_SPY_PERM1, VarPlayer 9543),
+-- or nil if they can't be read yet. Confirmed in game: spying adds the
+-- penguin's points, turning in 40 points took 40 off, and the value matches
+-- the in-game total. (Bits 24 and up hold something else - including them
+-- once made 167 points read as 935.)
+function Spied.readPoints()
+    local ok, value = pcall(function()
+        return var.VarPlayer.PENG_SPY_PERM1.value
+    end)
+    if ok and type(value) == "number" then
+        return (math.tointeger(value) >> 16) & 0xFF
+    end
+    return nil
+end
+
 -- Returns the raw variable value, or nil if it can't be read yet
 -- (for example while logging in).
 function Spied.readRaw()

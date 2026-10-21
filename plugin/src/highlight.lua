@@ -1,7 +1,8 @@
 -- Optional in-world highlight: draws a box around every disguised penguin
 -- near you (NPCs whose config name starts with PENG_SPY_, e.g.
 -- PENG_SPY_PUMPKIN, PENG_SPY_BARREL, PENG_SPY_SHADOW_PENGUIN).
--- Gold = not spied yet this week, faint grey = already spied.
+-- Colours come from Settings: unspied, spied, and a warning colour used for
+-- unspied penguins when your points are near the cap (spying would waste some).
 --
 -- Which penguin is which: NPCs don't carry their penguin number (all pumpkin
 -- penguins share one config), but each penguin NPC keeps the same UID. So we
@@ -10,11 +11,11 @@
 -- to be n, the nearest unrecognised penguin is taken to be n and saved.
 -- A penguin's spied state then comes straight from the game's spy flags.
 
+local Settings = require("src/settings")
+
 local Highlight = {}
 
 local PREFIX = "PENG_SPY_"
-local COLOUR_UNSPIED = 0xFFC832FF -- gold
-local COLOUR_SPIED = 0x8C8C8C60   -- faint grey
 local LINE_WIDTH = 3.0
 local MAP_KEY = "penguinUIDs"     -- PersistentDB key for learned UIDs
 
@@ -42,10 +43,10 @@ local function report(what, err)
     end
 end
 
-local enabled = false
 local penguins = {}   -- NPCEntity list from the last scan
 local lastCount = nil -- penguins found by the last scan, to report changes
 local spied = {}      -- [penguin number] = true, from the game's spy flags
+local points = nil    -- unspent penguin points, nil if unknown
 local guessed = {}    -- [uid] = true: spied this session but number unknown
 
 -- UID -> penguin number: the known table plus anything learned (saved).
@@ -98,26 +99,39 @@ local function myPosition()
     return nil, lastErr
 end
 
-function Highlight.setEnabled(value)
-    enabled = value == true
-    if not enabled then penguins = {} end
-    lastCount = nil
-    print("[penguins] highlight " .. (enabled and "on" or "off"))
+local function enabled()
+    return Settings.get("highlight") == true
 end
 
-function Highlight.isEnabled()
-    return enabled
-end
+-- Turning the highlight off forgets the nearby list (scan refills it).
+Settings.onChange(function(name, value)
+    if name == "highlight" then
+        if not value then penguins = {} end
+        lastCount = nil
+        print("[penguins] highlight " .. (value and "on" or "off"))
+    end
+end)
 
 -- The game's spy flags, { [n] = bool } (nil if unknown). Called on redraw.
 function Highlight.setSpied(flags)
     spied = flags or {}
 end
 
+-- Unspent penguin points (nil if unknown). Called on redraw.
+function Highlight.setPoints(value)
+    points = value
+end
+
+-- True when spying now could take you past the points cap.
+function Highlight.nearCap()
+    return Settings.get("capWarning") and points ~= nil
+        and points > Settings.get("capThreshold")
+end
+
 -- Refreshes the list of nearby penguins. Called a few times a second rather
 -- than every frame, because listing all NPCs is relatively expensive.
 function Highlight.scan()
-    if not enabled then return end
+    if not enabled() then return end
     local ok, all = pcall(NPCList.All)
     if not ok or type(all) ~= "table" then
         report("NPC list failed", all)
@@ -185,6 +199,8 @@ function Highlight.onSpied(numbers)
     if not ok then report("linking spied penguin failed", err) end
 end
 
+Highlight.isPenguin = isPenguin
+
 local function isSpiedNPC(npc)
     local n = numberFor[npc.uid]
     if n then return spied[n] == true end
@@ -194,7 +210,10 @@ end
 -- Draws the boxes. Must be called from Event.Draw (every frame), because
 -- ShapeList.Draw only lasts for the frame it's called in.
 function Highlight.draw()
-    if not enabled then return end
+    if not enabled() then return end
+    local colourSpied = Settings.get("colourSpied")
+    local colourUnspied = Highlight.nearCap() and Settings.get("colourCap")
+        or Settings.get("colourUnspied")
     for _, npc in ipairs(penguins) do
         local ok, err = pcall(function()
             if not npc.isValid then return end
@@ -208,7 +227,7 @@ function Highlight.draw()
                     Vector3.new(x0, y1, z1), Vector3.new(x1, y1, z1),
                 },
                 shapeLines = BOX_LINES,
-                colour = isSpiedNPC(npc) and COLOUR_SPIED or COLOUR_UNSPIED,
+                colour = isSpiedNPC(npc) and colourSpied or colourUnspied,
                 lineWidth = LINE_WIDTH,
                 ignoreDepth = true, -- visible through walls and scenery
             })

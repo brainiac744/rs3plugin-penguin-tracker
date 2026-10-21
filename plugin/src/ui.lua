@@ -6,6 +6,7 @@
 -- After building, View.update() just changes text and colours in place.
 
 local Clock = require("src/clock")
+local Settings = require("src/settings")
 
 local View = {}
 
@@ -226,7 +227,6 @@ end
 --   h.closed()           the player has closed the window
 --   h.confirm(n)         OK pressed on row n
 --   h.submit(n, text)    a new location was entered for row n
---   h.toggleHighlight()  the Highlight button was pressed
 --   h.geometry           saved { x, y, width, height } to restore, or nil
 -- Returns true on success, or false plus a reason.
 function View.openWindow(h)
@@ -278,16 +278,11 @@ function View.openWindow(h)
     top:SetPos(0, 0)
     top:SetSize(0, TOP_H, 1.0, 0)
 
-    local HL_W, REFRESH_W = 104, 68
+    local REFRESH_W = 68
     w.summary = newText(top)
     w.summary:SetPos(PAD, 0)
-    w.summary:SetSize(-(PAD + REFRESH_W + 4 + HL_W + 8), TOP_H, 1.0, 0)
+    w.summary:SetSize(-(PAD + REFRESH_W + 8), TOP_H, 1.0, 0)
     w.summary.colour = hex(C.summary)
-
-    -- Turns the in-world penguin boxes on and off.
-    w.highlight = newButton(top, "Highlight: Off", function() h.toggleHighlight() end)
-    w.highlight:SetPos(-(PAD + REFRESH_W + 4 + HL_W), 3, 1.0, 0)
-    w.highlight:SetSize(HL_W, TOP_H - 6)
 
     local refresh = newButton(top, "Refresh", function() h.refresh() end)
     refresh:SetPos(-(PAD + REFRESH_W), 3, 1.0, 0)
@@ -532,8 +527,76 @@ end
 -- Sidebar (ribbon icon)
 ---------------------------------------------------------------------------
 
--- Builds the sidebar view in the empty layer the game gives us.
--- onToggle is called when the Show/Hide button is pressed.
+-- Builds the settings page (Plugin Hub > Manage > the plugin's settings
+-- icon) as a scrolling PrettyUI view filling the given layer.
+local function buildSettings(parent, top, width, height)
+    local view = prettyui.SimpleView.new(parent, {
+        x = 0, y = top, width = width, height = math.max(60, height - top),
+    })
+
+    -- Colour pickers open a small window of their own. It has to sit on a
+    -- layer above the Plugin Hub, or the Hub hides it: the plugin build layer
+    -- is drawn above most game and interface components. Failing that, use
+    -- the settings page itself, which is at least above the settings view.
+    local pickerParent = parent
+    pcall(function()
+        local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+        if top then pickerParent = top end
+    end)
+
+    local function checkbox(label, key, tooltip)
+        view:AddCheckboxButton({
+            { text = label, value = key, selected = Settings.get(key) == true, tooltip = tooltip },
+        }, {
+            onChange = function(_, _, _, selected) Settings.set(key, selected == true) end,
+        })
+    end
+
+    local function colourRow(label, key)
+        -- leave room on the right for the swatch and the scrollbar
+        view:AddText({ text = label, width = math.max(80, width - 110) })
+        view:AddColourPicker({
+            value = Settings.get(key),
+            alphaSlider = true,
+            inline = true,
+            windowTitle = label,
+            windowParent = pickerParent,
+            onChange = function(_, colour) Settings.set(key, colour) end,
+        })
+    end
+
+    view:AddTitle("Highlight")
+    checkbox("Box penguins near you", "highlight", "Draws a box around disguised penguins nearby")
+    colourRow("Not spied", "colourUnspied")
+    colourRow("Spied", "colourSpied")
+
+    view:AddDivider({ marginTop = 4, marginBottom = 4 })
+    view:AddTitle("Points cap (" .. Settings.POINTS_CAP .. ")")
+    checkbox("Warn when points are over", "capWarning",
+        "Unspied penguins use the warning colour when spying could waste points")
+    view:AddTextField({
+        text = tostring(Settings.get("capThreshold")),
+        placeholder = tostring(Settings.get("capThreshold")),
+        maxLength = 3,
+        filterMode = ui.InputFieldFilterMode.NUMERIC,
+        onChange = function(field, _, text)
+            if tonumber(text) then Settings.set("capThreshold", Settings.clampThreshold(text)) end
+        end,
+        onSubmit = function(field, text)
+            local n = Settings.clampThreshold(text)
+            Settings.set("capThreshold", n)
+            pcall(function() field:SetText(tostring(n), false) end)
+        end,
+    })
+    colourRow("Warning colour", "colourCap")
+    checkbox("Make Spy-on not the left-click option", "capSwapSpy",
+        "Over the threshold, left-clicking a penguin won't spy on it (right-click still can)")
+    return view
+end
+
+-- Builds the sidebar (the Plugins panel, via the ribbon icon) in the empty
+-- layer the game gives us: a summary and a Show/Hide window button.
+-- onToggle: the Show/Hide button was pressed.
 function View.buildSidebar(root, onToggle)
     newRect(root, hex(C.bg))
 
@@ -549,6 +612,31 @@ function View.buildSidebar(root, onToggle)
     s.toggle:SetSize(-2 * PAD, 26, 1.0, 0)
 
     sidebar = s
+end
+
+local settingsPage = nil -- the PrettyUI view on the settings page, if shown
+
+-- Builds the settings page in the empty layer the game gives us.
+function View.buildSettingsPage(root)
+    View.closeSettingsPage()
+    if prettyui == nil then
+        print("[penguins] settings need the PrettyUI plugin enabled")
+        return
+    end
+    pcall(function() root:UpdateLayout() end)
+    local ok, view = pcall(buildSettings, root, 0, root.width or 400, root.height or 400)
+    if ok then
+        settingsPage = view
+    else
+        print("[penguins] could not build settings: " .. tostring(view))
+    end
+end
+
+function View.closeSettingsPage()
+    if settingsPage then
+        pcall(function() settingsPage:Destroy() end)
+        settingsPage = nil
+    end
 end
 
 function View.closeSidebar()
@@ -612,8 +700,8 @@ end
 
 -- Refreshes everything shown. items may be nil (no data yet); spied is
 -- { [n] = bool } or nil if spy progress can't be read; status is extra text
--- (e.g. an error); highlightOn is whether the in-world boxes are on.
-function View.update(items, spied, status, highlightOn)
+-- (e.g. an error); points is the unspent points balance (nil if unknown).
+function View.update(items, spied, status, points)
     local spiedCount, weekPts = 0, 0
     if spied then
         for n = 1, ITEM_COUNT do
@@ -625,12 +713,14 @@ function View.update(items, spied, status, highlightOn)
     end
     local summary = spied and string.format("%d/%d spied - %d pts this week",
         spiedCount, ITEM_COUNT, weekPts) or "Spy progress unavailable"
+    if points then
+        summary = summary .. string.format(" - %d/%d banked", points, Settings.POINTS_CAP)
+    end
     if status and status ~= "" then summary = summary .. " - " .. status end
 
     if win then
         local ok, err = pcall(function()
             win.summary.content = summary
-            win.highlight.label = highlightOn and "Highlight: On" or "Highlight: Off"
             for n = 1, ITEM_COUNT do
                 updateRow(win.rows[n], n, items and items[n], spied ~= nil and spied[n] == true)
             end

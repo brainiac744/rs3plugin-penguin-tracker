@@ -3,6 +3,7 @@
     "version": "0.3.0",
     "contactEmailAddress": "brainiac744@w60pengu.in",
     "hasRibbonIcon": true,
+    "hasSettingsIcon": true,
     "requiredDependencies": {
         "prettyui": 6398181
     },

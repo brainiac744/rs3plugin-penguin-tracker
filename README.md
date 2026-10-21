@@ -14,8 +14,12 @@ No more clicking rows to remember who you've found.
   shows how many you've found and how many points that's worth this week.
 - **Confirm or correct locations** — press **OK** if a penguin is still where it's listed, or
   **Edit** to report where it really is. Your update goes to w60pengu.in for everyone.
-- **Optional highlight** *(off by default)* — draws a gold box around disguised penguins near
-  you; ones you've just spied turn grey.
+- **Optional highlight** *(off by default)* — draws a box around disguised penguins near you:
+  gold if you haven't spied them yet, grey if you have. Colours are customisable.
+- **Points-cap warning** — penguin points are capped at 250 and any extra are lost, so once your
+  banked points pass a threshold (245 by default) unspied penguins are outlined in a warning
+  colour (red by default). Optionally, Spy-on also stops being the left-click option on
+  penguins, so you can't spy by accident (right-click still works).
 - A movable, resizable window that remembers where you left it.
 
 ## Using it
@@ -27,7 +31,9 @@ No more clicking rows to remember who you've found.
      and how long ago that was reported.
    - Faded rows are penguins you've already spied this week.
    - **Refresh** fetches the latest locations immediately.
-   - **Highlight: Off / On** toggles the boxes around nearby penguins.
+   - The header also shows your banked points out of 250.
+4. Settings are on the plugin's settings page (**Plugin Hub › Manage**, then Penguin Tracker's
+   settings icon): turn the highlight on, pick its colours, and set up the points-cap warning.
 
 Points never change: penguins 1–5 are worth 1, 6–10 and 12 are worth 2, penguin 11 (the ghost)
 is worth 3, and the bear is worth 1.
@@ -71,6 +77,8 @@ Requires the **PrettyUI** plugin (installed automatically as a dependency from t
 | `plugin/src/locations.lua` | Talks to the w60pengu.in API |
 | `plugin/src/ui.lua` | The window and the Plugins-panel summary |
 | `plugin/src/highlight.lua` | Optional in-world boxes around penguin NPCs |
+| `plugin/src/menu.lua` | Near the points cap, keeps Spy-on off the left click (optional) |
+| `plugin/src/settings.lua` | Saved player settings and their defaults |
 | `plugin/src/clock.lua` | Current time, for "5m ago" labels |
 | `plugin/src/json.lua` | Small JSON reader/writer (Lua has none built in) |
 
@@ -83,6 +91,8 @@ Requires the **PrettyUI** plugin (installed automatically as a dependency from t
 | 26 | the bear |
 | 27 | penguin 11 (the ghost) |
 | 28 | penguin 12 |
+
+**Banked points** are bits 16–23 of `PENG_SPY_PERM1` (VarPlayer 9543).
 
 Penguin NPCs are named after their disguise (`PENG_SPY_PUMPKIN`, `PENG_SPY_BARREL`, …) and don't
 carry their penguin number, but each one keeps the same NPC UID. The highlight uses a table of
