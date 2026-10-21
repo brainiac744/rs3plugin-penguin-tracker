@@ -1,0 +1,13 @@
+{
+    "name": "Penguin Tracker",
+    "version": "0.3.0",
+    "contactEmailAddress": "you@example.com",
+    "hasRibbonIcon": true,
+    "requiredDependencies": {
+        "prettyui": 6398181
+    },
+    "optionalPermissions": [ "httpAccess" ],
+    "urls": {
+        "pengu": "https://api.w60pengu.in"
+    }
+}
