@@ -10,7 +10,7 @@ No more clicking rows to remember who you've found.
 
 - **Live locations** of all 12 penguins and the bear, from the community tracker at
   [w60pengu.in](https://w60pengu.in), refreshed every 30 seconds while the window is open.
-- **Automatic spy tracking** — spied penguins fade out the moment you spy them, and the header
+- **Automatic spy tracking** — a penguin's name turns green the moment you spy it, and the header
   shows how many you've found and how many points that's worth this week.
 - **Confirm or correct locations** — press **OK** if a penguin is still where it's listed, or
   **Edit** to report where it really is. Your update goes to w60pengu.in for everyone.
@@ -25,11 +25,12 @@ No more clicking rows to remember who you've found.
 ## Using it
 
 1. Open the **Plugins** panel and click the **Penguin Tracker** icon.
-2. Press **Show window**.
+2. Press **Show locations**.
 3. In the window:
    - Rows show the penguin's number, area and disguise, its points, the last reported location
      and how long ago that was reported.
-   - Faded rows are penguins you've already spied this week.
+   - Green names (marked "spied") are penguins you've already spied this week. You can still
+     confirm or edit their locations - having just seen them, you're the best person to.
    - **Refresh** fetches the latest locations immediately.
    - The header also shows your banked points out of 250.
 4. Settings are on the plugin's settings page (**Plugin Hub › Manage**, then Penguin Tracker's

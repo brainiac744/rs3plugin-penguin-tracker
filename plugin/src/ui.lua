@@ -38,10 +38,12 @@ local C = {
     divider  = 0x2E2A20,
     name     = 0xE8D8A8, ghostName = 0xB8C8A8, bearName = 0xC8982E,
     num      = 0x7A6E4A, location = 0xA09060, age = 0x5C5238, summary = 0xC8B87C,
-    error    = 0xCC5566,
+    error    = 0xCC5566, spied = 0x3FD24A,
     pts      = { [1] = 0x6A8C3A, [2] = 0x9E8E5C, [3] = 0xB8902E },
 }
-local SPIED_ALPHA = 0.32 -- spied rows fade out, like the Alt1 app
+-- Spied penguins show their name in green, like a completed quest in the
+-- quest list. Rows stay at full brightness so they don't look disabled -
+-- a spied penguin's location is often the one you can best confirm or fix.
 
 -- Points never change week to week: penguins 1-5 = 1, 6-10 and 12 = 2,
 -- 11 (the ghost) = 3, bear = 1. Used when the API has no data.
@@ -651,7 +653,7 @@ local function buildSettings(parent, top, width, height)
 end
 
 -- Builds the sidebar (the Plugins panel, via the ribbon icon) in the empty
--- layer the game gives us: a summary and a Show/Hide window button.
+-- layer the game gives us: a summary and a Show/Hide locations button.
 -- onToggle: the Show/Hide button was pressed.
 function View.buildSidebar(root, onToggle)
 
@@ -662,7 +664,7 @@ function View.buildSidebar(root, onToggle)
     s.summary.maxLines = 2
     s.summary.colour = hex(C.summary)
 
-    s.toggle = newButton(root, "Show window", onToggle)
+    s.toggle = newButton(root, "Show locations", onToggle)
     s.toggle:SetPos(PAD, 50)
     s.toggle:SetSize(-2 * PAD, 26, 1.0, 0)
 
@@ -709,12 +711,11 @@ end
 -- Fills one row from the API entry (may be nil) and spy state.
 local function updateRow(r, n, entry, isSpied)
     local kind = (entry and entry.type) or (n == 11 and "ghost") or (n == 13 and "bear") or "penguin"
-    local a = isSpied and SPIED_ALPHA or 1.0
     local pts = pointsFor(n, entry)
 
-    r.num.colour = hex(C.num, a)
+    r.num.colour = hex(C.num)
     r.pts.content = pts .. "pt"
-    r.pts.colour = hex(C.pts[pts] or C.pts[2], a)
+    r.pts.colour = hex(C.pts[pts] or C.pts[2])
 
     local name = entry and tostring(entry.name or defaultName(n)) or defaultName(n)
     if entry and kind ~= "ghost" and entry.disguise and entry.disguise ~= "" then
@@ -722,7 +723,8 @@ local function updateRow(r, n, entry, isSpied)
     end
     if isSpied then name = name .. "  (spied)" end
     r.name.content = name
-    r.name.colour = hex(kind == "ghost" and C.ghostName or kind == "bear" and C.bearName or C.name, a)
+    r.name.colour = hex(isSpied and C.spied
+        or kind == "ghost" and C.ghostName or kind == "bear" and C.bearName or C.name)
 
     local loc = "No location data"
     if entry then
@@ -733,14 +735,14 @@ local function updateRow(r, n, entry, isSpied)
         end
     end
     r.location.content = loc
-    r.location.colour = hex(C.location, a)
+    r.location.colour = hex(C.location)
 
     if rowError[n] then
         r.age.content = "failed"
         r.age.colour = hex(C.error)
     else
         r.age.content = entry and Clock.ago(entry.lastUpdated) or ""
-        r.age.colour = hex(C.age, a)
+        r.age.colour = hex(C.age)
     end
 
     -- Confirm/edit only for items the API accepts updates for.
@@ -786,7 +788,7 @@ function View.update(items, spied, status, points)
     if sidebar then
         local ok = pcall(function()
             sidebar.summary.content = summary
-            sidebar.toggle.label = win and "Hide window" or "Show window"
+            sidebar.toggle.label = win and "Hide locations" or "Show locations"
         end)
         if not ok then sidebar = nil end -- sidebar was closed; rebuilt on next show
     end
