@@ -17,7 +17,15 @@ local MAX_LOC_LINES = 4   -- longest a location is allowed to wrap
 local TOP_H = 28       -- summary strip at the top of the window
 local PAD = 6
 local WINDOW_W, WINDOW_H = 480, 440
-local OK_W, EDIT_W = 30, 40         -- confirm / edit buttons on line 1
+local OK_W, EDIT_W = 28, 28         -- confirm / edit buttons on line 1
+local ICON = 16                     -- size of the icon drawn on each button
+
+-- Built-in game sprites for the buttons (names from the community catalogue
+-- at github.com/sereselene/rsprite, checked in game). If a name isn't
+-- known, the button falls back to its text label.
+local ICON_OK = "RS3_CONTEXTUAL_INPUT_GREEN_CHECK_MARK"
+local ICON_EDIT = "RS3_MENU_BTN_EDIT_NORMAL"
+local ICON_EDIT_OVER = "RS3_MENU_BTN_EDIT_OVER"
 local SAVE_W, CANCEL_W = 44, 56     -- save / cancel buttons while editing
 local MIN_LEN, MAX_LEN = 4, 150     -- location length limits (same as the Alt1 app)
 
@@ -97,6 +105,62 @@ local function newButton(parent, label, onPress)
     return b
 end
 
+local function spriteID(name)
+    local ok, v = pcall(function() return id.Sprite[name] end)
+    if ok and v then return v end
+    return nil
+end
+
+-- A normal button with an icon drawn over its centre instead of text.
+-- The icon lets clicks through to the button underneath. hoverName, if
+-- given, is a second sprite shown while the mouse is over the button.
+-- Returns the button and the icon (nil if the sprite wasn't found, in which
+-- case the button keeps its text label).
+local function newIconButton(parent, label, spriteName, hoverName, onPress)
+    local button = newButton(parent, label, onPress)
+    local normal = spriteID(spriteName)
+    if not normal then return button, nil end
+    local hover = hoverName and spriteID(hoverName) or nil
+
+    local icon = nil
+    local ok = pcall(function()
+        icon = ui.Sprite.new(parent)
+        icon.sprite = normal
+        icon.clickthrough = true
+    end)
+    if not ok or not icon then return button, nil end
+    button.label = ""
+    if hover then
+        pcall(function()
+            button:Subscribe(ui.Hook.ONMOUSEOVER, "penguin-icon", function() icon.sprite = hover end)
+            button:Subscribe(ui.Hook.ONMOUSELEAVE, "penguin-icon", function() icon.sprite = normal end)
+        end)
+    end
+    return button, icon
+end
+
+-- Places an icon centred on a button that sits at (x, y) with size (w, h),
+-- where x is measured from the right edge (like the buttons' own SetPos).
+local function placeIcon(icon, x, y, w, h)
+    if not icon then return end
+    icon:SetPos(x + (w - ICON) // 2, y + (h - ICON) // 2, 1.0, 0)
+    icon:SetSize(ICON, ICON)
+end
+
+-- Shows/hides and enables/disables a row's OK and Edit buttons and icons.
+local function setRowButtons(r, visible, enabled)
+    for _, part in ipairs({ r.ok, r.edit }) do
+        part.hidden = not visible
+        if enabled ~= nil then part.enabled = enabled end
+    end
+    for _, icon in ipairs({ r.okIcon, r.editIcon }) do
+        if icon then
+            icon.hidden = not visible
+            if enabled ~= nil then icon.alpha = enabled and 1.0 or 0.4 end
+        end
+    end
+end
+
 -- Current interface parts (nil when not shown).
 local win = nil      -- { window, summary, rows }
 local handlers = nil -- callbacks given to openWindow
@@ -134,13 +198,17 @@ local function buildRow(parent, n, y)
     r.name:SetPos(PAD + 20, 0)
     r.name:SetSize(-(PAD + 20 + rightOfName), half, 1.0, 0)
 
-    r.ok = newButton(row, "OK", function() handlers.confirm(n) end)
-    r.ok:SetPos(-(PAD + 40 + 4 + EDIT_W + 4 + OK_W), 1, 1.0, 0)
-    r.ok:SetSize(OK_W, half - 2)
+    -- Confirm (tick) and Edit (pencil) buttons.
+    local okX, editX, by, bh = -(PAD + 40 + 4 + EDIT_W + 4 + OK_W), -(PAD + 40 + 4 + EDIT_W), 1, half - 2
+    r.ok, r.okIcon = newIconButton(row, "OK", ICON_OK, nil, function() handlers.confirm(n) end)
+    r.ok:SetPos(okX, by, 1.0, 0)
+    r.ok:SetSize(OK_W, bh)
+    placeIcon(r.okIcon, okX, by, OK_W, bh)
 
-    r.edit = newButton(row, "Edit", function() View.startEdit(n) end)
-    r.edit:SetPos(-(PAD + 40 + 4 + EDIT_W), 1, 1.0, 0)
-    r.edit:SetSize(EDIT_W, half - 2)
+    r.edit, r.editIcon = newIconButton(row, "Edit", ICON_EDIT, ICON_EDIT_OVER, function() View.startEdit(n) end)
+    r.edit:SetPos(editX, by, 1.0, 0)
+    r.edit:SetSize(EDIT_W, bh)
+    placeIcon(r.editIcon, editX, by, EDIT_W, bh)
 
     r.pts = newText(row)
     r.pts:SetPos(-(PAD + 40), 0, 1.0, 0)
@@ -444,8 +512,7 @@ function View.startEdit(n)
 
     r.location.hidden = true
     r.age.hidden = true
-    r.ok.hidden = true
-    r.edit.hidden = true
+    setRowButtons(r, false)
     editing[n] = e
 end
 
@@ -462,8 +529,7 @@ function finishEdit(n)
             local r = win.rows[n]
             r.location.hidden = false
             r.age.hidden = false
-            r.ok.hidden = false   -- only editable rows can be edited
-            r.edit.hidden = false
+            setRowButtons(r, true) -- only editable rows can be edited
         end)
     end
 end
@@ -680,10 +746,7 @@ local function updateRow(r, n, entry, isSpied)
 
     -- Confirm/edit only for items the API accepts updates for.
     local canEdit = entry ~= nil and entry.updatesAllowed == true
-    r.ok.hidden = not canEdit or editing[n] ~= nil
-    r.edit.hidden = not canEdit or editing[n] ~= nil
-    r.ok.enabled = not busy[n]
-    r.edit.enabled = not busy[n]
+    setRowButtons(r, canEdit and editing[n] == nil, not busy[n])
     if not canEdit and editing[n] then finishEdit(n) end
 end
 
