@@ -22,9 +22,9 @@ local function failure(req)
     return msg
 end
 
--- Calls onDone(items) on success, or onDone(nil, message) on failure. items is { [itemNumber] = entry } where entry has the API's
--- fields: name, disguise, points, location, lastUpdated, updatesAllowed,
--- type, confinedTo.
+-- Calls onDone(items) on success, or onDone(nil, message) on failure.
+-- items is { [itemNumber] = entry }, where entry has the API's fields: name,
+-- disguise, points, location, lastUpdated, updatesAllowed, type, confinedTo.
 function Locations.fetch(onDone)
     if noPermission() then
         onDone(nil, "httpAccess permission not granted (try: ppr penguin-tracker)")

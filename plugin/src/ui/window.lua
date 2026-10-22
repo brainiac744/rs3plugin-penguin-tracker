@@ -425,9 +425,9 @@ function Window.isOpen()
 end
 
 -- Called regularly from the plugin's Logic handler (10 times a second).
--- Re-measures wrapped rows when the width changes - the resize event can
--- arrive before the new width is readable, so it's checked here instead -
--- and saves the position once the player stops moving the window.
+-- Re-measures wrapped rows when the width changes, and saves the position
+-- once the player stops moving the window. The width is checked here because
+-- the resize event can arrive before the new width is readable.
 function Window.tick(tick)
     if not win then return end
     local ok, width = pcall(locationWidth)

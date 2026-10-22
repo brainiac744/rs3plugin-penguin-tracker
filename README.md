@@ -3,24 +3,23 @@
 A RuneScape plugin for the weekly **Penguin Hide and Seek** Distraction & Diversion.
 
 It shows where this week's penguins and the polar bear have been reported, and marks the
-ones **you have already spied — automatically**, by reading your progress from the game.
-No more clicking rows to remember who you've found.
+ones you have already spied by reading your progress from the game.
 
 ## Features
 
-- **Live locations** of all 12 penguins and the bear, from the community tracker at
+- Locations of all 12 penguins and the bear from the community tracker at
   [w60pengu.in](https://w60pengu.in), refreshed every 30 seconds while the window is open.
-- **Automatic spy tracking** — a penguin's name turns green the moment you spy it, and the header
-  shows how many you've found and how many points that's worth this week.
-- **Confirm or correct locations** — press **OK** if a penguin is still where it's listed, or
-  **Edit** to report where it really is. Your update goes to w60pengu.in for everyone.
-- **Optional highlight** *(off by default)* — draws a box around disguised penguins near you:
-  gold if you haven't spied them yet, grey if you have. Colours are customisable.
-- **Points-cap warning** — penguin points are capped at 250 and any extra are lost, so once your
-  banked points pass a threshold (245 by default) unspied penguins are outlined in a warning
-  colour (red by default). Optionally, Spy-on also stops being the left-click option on
-  penguins, so you can't spy by accident (right-click still works).
-- A movable, resizable window that remembers where you left it.
+- A penguin's name turns green when you spy it, and the header shows how many you've found
+  and how many points that's worth this week.
+- Press **OK** if a penguin is still where it's listed, or **Edit** to report where it really
+  is. Your update goes to w60pengu.in for everyone.
+- An optional highlight (off by default) draws a box around disguised penguins near you: gold
+  if you haven't spied them yet, grey if you have. You can change the colours.
+- Penguin points are capped at 250 and any extra are lost. Once your banked points pass a
+  threshold (245 by default), unspied penguins are outlined in a warning colour (red by
+  default). You can also have Spy-on stop being the left-click option near the cap, so you
+  can't spy by accident (right-click still works).
+- The window can be moved and resized, and remembers where you left it.
 
 ## Using it
 
