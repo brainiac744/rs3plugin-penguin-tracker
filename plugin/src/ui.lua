@@ -623,12 +623,11 @@ local function buildSettings(parent, top, width, height)
     end
 
     view:AddTitle("Highlight")
-    checkbox("Box penguins near you", "highlight", "Draws a box around disguised penguins nearby")
-    colourRow("Not spied", "colourUnspied")
-    colourRow("Spied", "colourSpied")
+    checkbox("Highlight penguins near you", "highlight", "Draws a box around disguised penguins nearby")
+    colourRow("Not spied colour", "colourUnspied")
+    colourRow("Spied colour", "colourSpied")
 
-    view:AddDivider({ marginTop = 4, marginBottom = 4 })
-    view:AddTitle("Points cap (" .. Settings.POINTS_CAP .. ")")
+    view:AddTitle("Points Warning")
     checkbox("Warn when points are over", "capWarning",
         "Unspied penguins use the warning colour when spying could waste points")
     view:AddTextField({
@@ -646,7 +645,7 @@ local function buildSettings(parent, top, width, height)
         end,
     })
     colourRow("Warning colour", "colourCap")
-    checkbox("Make Spy-on not the left-click option", "capSwapSpy",
+    checkbox("Hide Spy-on option on penguins", "capSwapSpy",
         "Over the threshold, left-clicking a penguin won't spy on it (right-click still can)")
     return view
 end
