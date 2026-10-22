@@ -187,6 +187,7 @@ end)
 Event.Logic.Subscribe(EVENT_KEY, function(e)
     local tick = e.logicTick
     currentTick = tick
+    Clock.onLogic(tick)
     if tick % 5 == 0 then Window.tick(tick) end     -- 10 times a second
     if tick % 10 == 0 then Highlight.scan() end     -- 5 times a second
     -- Locations are only shown in the window, so only fetch while it's open:

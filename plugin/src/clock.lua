@@ -1,22 +1,36 @@
 -- Current Unix time in seconds, for "5m ago" labels.
 --
 -- The game variable CLOCK_TIME_DATE_MINUTES holds Unix time in minutes
--- (29873712 = 19 Oct 2026) and is sent once a minute; the plugin passes each
--- new value to Clock.onMinute. At start-up we also try to read its current
--- value so the labels don't have to wait for the first update.
+-- (29873712 = 19 Oct 2026). It's only sent while the in-game clock is shown
+-- (once a minute), so we don't rely on it arriving: from the last value we
+-- received, we keep counting with the game's logic ticks (a fixed 50 a
+-- second). One reading is enough; with none at all, the time is unknown and
+-- the labels are left blank.
 
 local Clock = {}
 
 Clock.VAR_NAME = "CLOCK_TIME_DATE_MINUTES"
 
-local lastMinutes = nil
+local TICKS_PER_SECOND = 50
+
+local baseMinutes = nil -- last clock value, in Unix minutes
+local baseTick = nil    -- logic tick when it was received
+local latestTick = nil  -- most recent logic tick
+
+-- Called from the Logic handler every tick.
+function Clock.onLogic(tick)
+    latestTick = tick
+end
 
 -- Called from the VarTransmit handler with the variable's new value.
 function Clock.onMinute(value)
-    if type(value) == "number" then lastMinutes = value end
+    if type(value) == "number" and value > 0 then
+        baseMinutes, baseTick = value, latestTick
+    end
 end
 
--- Read the variable directly (used once, at start-up).
+-- At start-up, try reading the variable directly so the labels don't have
+-- to wait for the next update (it may still hold the last value sent).
 local function readNow()
     for _, domain in ipairs({ "VarClient", "VarPlayer" }) do
         local ok, v = pcall(function() return var[domain][Clock.VAR_NAME].value end)
@@ -25,10 +39,20 @@ local function readNow()
     return nil
 end
 
--- Returns Unix seconds, or nil if the time isn't known yet.
+-- Returns Unix seconds, or nil if the time isn't known.
 function Clock.now()
-    if lastMinutes == nil then lastMinutes = readNow() end
-    return lastMinutes and lastMinutes * 60 or nil
+    if baseMinutes == nil then
+        local v = readNow()
+        if v == nil then return nil end
+        baseMinutes, baseTick = v, latestTick
+    end
+    local seconds = baseMinutes * 60
+    if baseTick == nil then
+        baseTick = latestTick -- got the value before the first tick
+    elseif latestTick then
+        seconds = seconds + (latestTick - baseTick) // TICKS_PER_SECOND
+    end
+    return seconds
 end
 
 -- "45s ago", "12m ago", "3h ago", "2d ago", or "" if unknown.
