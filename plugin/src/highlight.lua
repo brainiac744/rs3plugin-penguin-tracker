@@ -1,6 +1,7 @@
 -- Optional in-world highlight: draws a box around every disguised penguin
 -- near you (NPCs whose config name starts with PENG_SPY_, e.g.
--- PENG_SPY_PUMPKIN, PENG_SPY_BARREL, PENG_SPY_SHADOW_PENGUIN).
+-- PENG_SPY_PUMPKIN, PENG_SPY_BARREL, PENG_SPY_SHADOW_PENGUIN - but not the
+-- PENG_SPY_SHELDON_PET pet).
 -- Colours come from Settings: unspied, spied, and a warning colour used for
 -- unspied penguins when your points are near the cap (spying would waste some).
 --
@@ -16,6 +17,11 @@ local Settings = require("src/settings")
 local Highlight = {}
 
 local PREFIX = "PENG_SPY_"
+-- NPCs that share the prefix but aren't hiding penguins. Checked against the
+-- game cache (Oct 2026): the penguin-spying pet is the only one.
+local NOT_PENGUINS = {
+    PENG_SPY_SHELDON_PET = true,
+}
 local LINE_WIDTH = 3.0
 local MAP_KEY = "penguinUIDs"     -- PersistentDB key for learned UIDs
 
@@ -71,12 +77,17 @@ local function saveLearned()
     pcall(function() PersistentDB:SetStructuredData(MAP_KEY, out) end)
 end
 
+local function hidingPenguinName(name)
+    return name:sub(1, #PREFIX) == PREFIX and not NOT_PENGUINS[name]
+end
+
 local function isPenguin(npc)
     local ok, yes = pcall(function()
         local name = npc.config and npc.config.configName or ""
-        if name:sub(1, #PREFIX) == PREFIX then return true end
         local parent = npc.parentConfig and npc.parentConfig.configName or ""
-        return parent:sub(1, #PREFIX) == PREFIX
+        -- A listed exception never counts, even through its parent config.
+        if NOT_PENGUINS[name] or NOT_PENGUINS[parent] then return false end
+        return hidingPenguinName(name) or hidingPenguinName(parent)
     end)
     if not ok then report("NPC check failed", yes) end
     return ok and yes
