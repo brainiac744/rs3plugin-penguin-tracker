@@ -26,7 +26,8 @@ local ITEM_BITS = 0x1C0003FF                -- spy flags in PENG_SPY_SWITCH (see
 local items = nil       -- latest locations from the API, keyed by item number
 local status = ""       -- shown in the summary, e.g. a fetch error
 local fetching = false  -- avoid overlapping requests
-local lastFetchTick = nil
+local lastFetchTick = nil -- Logic tick of the last fetch (nil = never)
+local currentTick = nil   -- latest Logic tick seen
 
 -- Whether the player wants the window open; saved between sessions.
 local wantOpen = false
@@ -100,6 +101,7 @@ end)
 local function refresh()
     if fetching then return end
     fetching = true
+    lastFetchTick = currentTick -- the Refresh button also restarts the 30 seconds
     status = "updating..."
     redraw()
     Locations.fetch(function(newItems, _, err)
@@ -223,7 +225,8 @@ Event.VarTransmit.Subscribe(EVENT_KEY, function(e)
     end
 end)
 
--- Refresh locations every 30 seconds. Ten times a second, also keep wrapped
+-- Refresh locations every 30 seconds while the window is open. Ten times a
+-- second, also keep wrapped
 -- rows in step with the window width and note if the window has moved.
 Event.Logic.Subscribe(EVENT_KEY, function(e)
     local tick = e.logicTick
@@ -232,8 +235,11 @@ Event.Logic.Subscribe(EVENT_KEY, function(e)
         trackGeometry(tick)
     end
     if tick % 10 == 0 then Highlight.scan() end -- nearby penguins, 5 times a second
-    if lastFetchTick == nil or tick - lastFetchTick >= REFRESH_TICKS then
-        lastFetchTick = tick
+    currentTick = tick
+    -- Locations are only shown in the window, so only fetch while it's open.
+    -- Opening it after more than 30 seconds fetches straight away; reopening
+    -- sooner shows what we have until the 30 seconds are up.
+    if View.isWindowOpen() and (lastFetchTick == nil or tick - lastFetchTick >= REFRESH_TICKS) then
         refresh()
     end
 end)

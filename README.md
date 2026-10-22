@@ -9,7 +9,7 @@ No more clicking rows to remember who you've found.
 ## Features
 
 - **Live locations** of all 12 penguins and the bear, from the community tracker at
-  [w60pengu.in](https://w60pengu.in), refreshed every 30 seconds.
+  [w60pengu.in](https://w60pengu.in), refreshed every 30 seconds while the window is open.
 - **Automatic spy tracking** — spied penguins fade out the moment you spy them, and the header
   shows how many you've found and how many points that's worth this week.
 - **Confirm or correct locations** — press **OK** if a penguin is still where it's listed, or
