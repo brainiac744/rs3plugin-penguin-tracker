@@ -27,7 +27,7 @@ local function hex(rgb, alpha)
         (rgb & 0xFF) / 255, alpha or 1.0)
 end
 local C = {
-    bg       = 0x1A1A14, ghostBg = 0x1E1C16, bearBg = 0x221C12, divider = 0x2E2A20,
+    divider  = 0x2E2A20,
     name     = 0xE8D8A8, ghostName = 0xB8C8A8, bearName = 0xC8982E,
     num      = 0x7A6E4A, location = 0xA09060, age = 0x5C5238, summary = 0xC8B87C,
     error    = 0xCC5566,
@@ -89,14 +89,6 @@ local function newText(parent)
     return t
 end
 
-local function newRect(parent, colour)
-    local r = ui.Rectangle.new(parent)
-    r:SetSize(0, 0, 1.0, 1.0)
-    r.fill = true
-    r.colour = colour
-    return r
-end
-
 local function newButton(parent, label, onPress)
     local b = ui.Button.new(parent)
     b.label = label
@@ -122,7 +114,6 @@ local function buildRow(parent, n, y)
     row:SetSize(0, ROW_H, 1.0, 0)
 
     local r = { layer = row, y = y }
-    r.bg = newRect(row, hex(C.bg))
 
     r.divider = ui.Rectangle.new(row)
     r.divider:SetPos(0, ROW_H - 1)
@@ -598,7 +589,6 @@ end
 -- layer the game gives us: a summary and a Show/Hide window button.
 -- onToggle: the Show/Hide button was pressed.
 function View.buildSidebar(root, onToggle)
-    newRect(root, hex(C.bg))
 
     local s = {}
     s.summary = newText(root)
@@ -657,7 +647,6 @@ local function updateRow(r, n, entry, isSpied)
     local a = isSpied and SPIED_ALPHA or 1.0
     local pts = pointsFor(n, entry)
 
-    r.bg.colour = hex(kind == "ghost" and C.ghostBg or kind == "bear" and C.bearBg or C.bg)
     r.num.colour = hex(C.num, a)
     r.pts.content = pts .. "pt"
     r.pts.colour = hex(C.pts[pts] or C.pts[2], a)
