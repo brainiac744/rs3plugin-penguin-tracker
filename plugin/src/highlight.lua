@@ -13,6 +13,8 @@
 -- A penguin's spied state then comes straight from the game's spy flags.
 
 local Settings = require("src/settings")
+local Log = require("src/log")
+local Items = require("src/items")
 
 local Highlight = {}
 
@@ -38,22 +40,14 @@ local BOX_LINES = {
     0, 4, 1, 5, 2, 6, 3, 7, -- sides
 }
 
--- Prints each distinct problem once, so failures show in the console
--- without flooding it every frame.
-local reported = {}
 local function report(what, err)
-    local msg = "[penguins] highlight " .. what .. ": " .. tostring(err)
-    if not reported[msg] then
-        reported[msg] = true
-        print(msg)
-    end
+    Log.problem("highlight " .. what .. ": " .. tostring(err))
 end
 
 local penguins = {}   -- NPCEntity list from the last scan
 local lastCount = nil -- penguins found by the last scan, to report changes
 local spied = {}      -- [penguin number] = true, from the game's spy flags
 local points = nil    -- unspent penguin points, nil if unknown
-local guessed = {}    -- [uid] = true: spied this session but number unknown
 
 -- UID -> penguin number: the known table plus anything learned (saved).
 local numberFor = {}
@@ -93,21 +87,13 @@ local function isPenguin(npc)
     return ok and yes
 end
 
--- Your character's world position (x, z), trying the ways the API might
--- expose it. Returns nil plus the reason if none work.
+-- Your character's world position, or nil plus the reason.
+-- (Tested in game, standing and walking: this matches PlayerList.Self() and
+-- is available as soon as the plugin starts.)
 local function myPosition()
-    local attempts = {
-        function() return Player.GetEntity().position end,
-        function() return PlayerList.Self().position end,
-        function() return Player.GetEntity().aabb.centre end,
-    }
-    local lastErr = "no position available"
-    for _, get in ipairs(attempts) do
-        local ok, p = pcall(get)
-        if ok and p and p.x and p.z then return p end
-        if not ok then lastErr = p end
-    end
-    return nil, lastErr
+    local ok, p = pcall(function() return Player.GetEntity().position end)
+    if ok and p then return p end
+    return nil, ok and "not available" or p
 end
 
 local function enabled()
@@ -119,7 +105,7 @@ Settings.onChange(function(name, value)
     if name == "highlight" then
         if not value then penguins = {} end
         lastCount = nil
-        print("[penguins] highlight " .. (value and "on" or "off"))
+        Log.debug("highlight " .. (value and "on" or "off"))
     end
 end)
 
@@ -155,7 +141,7 @@ function Highlight.scan()
     penguins = found
     if #found ~= lastCount then
         lastCount = #found
-        print(string.format("[penguins] highlight: %d penguin(s) nearby (of %d NPCs)", #found, #all))
+        Log.debug(string.format("highlight: %d penguin(s) nearby (of %d NPCs)", #found, #all))
     end
 end
 
@@ -170,7 +156,7 @@ function Highlight.onSpied(numbers)
             if npc.isValid and isPenguin(npc) then inView[#inView + 1] = npc end
         end
         for _, n in ipairs(numbers) do
-            if n <= 12 then -- the bear (13) isn't a PENG_SPY_ NPC
+            if n < Items.BEAR then -- the bear isn't a PENG_SPY_ NPC
                 local known = false
                 for _, npc in ipairs(inView) do
                     if numberFor[npc.uid] == n then known = true end
@@ -197,11 +183,10 @@ function Highlight.onSpied(numbers)
                             if m == n then numberFor[uid] = nil end
                         end
                         numberFor[best.uid] = n
-                        guessed[best.uid] = nil
                         saveLearned()
-                        print(string.format("[penguins] highlight: learned penguin %d is NPC %d", n, best.uid))
+                        Log.debug(string.format("highlight: learned penguin %d is NPC %d", n, best.uid))
                     else
-                        print(string.format("[penguins] highlight: spied penguin %d, but couldn't tell which NPC it was", n))
+                        Log.problem(string.format("highlight: spied penguin %d, but couldn't tell which NPC it was", n))
                     end
                 end
             end
@@ -214,8 +199,7 @@ Highlight.isPenguin = isPenguin
 
 local function isSpiedNPC(npc)
     local n = numberFor[npc.uid]
-    if n then return spied[n] == true end
-    return guessed[npc.uid] == true
+    return n ~= nil and spied[n] == true
 end
 
 -- Draws the boxes. Must be called from Event.Draw (every frame), because
@@ -251,7 +235,6 @@ end
 -- UIDs have stayed the same across logins.)
 function Highlight.reset()
     penguins = {}
-    guessed = {}
 end
 
 return Highlight

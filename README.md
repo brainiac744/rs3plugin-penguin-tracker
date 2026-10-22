@@ -73,15 +73,20 @@ Requires the **PrettyUI** plugin (installed automatically as a dependency from t
 
 | File | Purpose |
 |---|---|
-| `plugin/main.lua` | Entry point: events, timers, saving settings |
-| `plugin/src/spied.lua` | Reads spy progress from the game variable `PENG_SPY_SWITCH` |
+| `plugin/main.lua` | Entry point: wires events and timers to the pieces below |
+| `plugin/src/spied.lua` | Reads spy progress and banked points from game variables |
 | `plugin/src/locations.lua` | Talks to the w60pengu.in API |
-| `plugin/src/ui.lua` | The window and the Plugins-panel summary |
 | `plugin/src/highlight.lua` | Optional in-world boxes around penguin NPCs |
 | `plugin/src/menu.lua` | Near the points cap, keeps Spy-on off the left click (optional) |
 | `plugin/src/settings.lua` | Saved player settings and their defaults |
+| `plugin/src/items.lua` | The 13 items: numbering, fixed points, default names |
 | `plugin/src/clock.lua` | Current time, for "5m ago" labels |
 | `plugin/src/json.lua` | Small JSON reader/writer (Lua has none built in) |
+| `plugin/src/log.lua` | Console messages (set `Log.DEBUG = true` for progress messages) |
+| `plugin/src/ui/window.lua` | The locations window, including editing and remembering its position |
+| `plugin/src/ui/sidebar.lua` | The Plugins panel: summary and Show/Hide locations |
+| `plugin/src/ui/settings_page.lua` | The settings page |
+| `plugin/src/ui/common.lua` | Shared colours, fonts and UI helpers |
 
 **Spy progress** comes from one player variable, `PENG_SPY_SWITCH` (VarPlayer 1408):
 

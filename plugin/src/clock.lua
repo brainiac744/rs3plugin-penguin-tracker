@@ -1,10 +1,13 @@
 -- Current Unix time in seconds, for "5m ago" labels.
 --
--- The game sends CLOCK_TIME_DATE_MINUTES once a minute; it holds Unix time in
--- minutes (29873712 minutes = 19 Oct 2026). We remember the latest value from
--- VarTransmit, and also try os.time() in case it is available.
+-- The game variable CLOCK_TIME_DATE_MINUTES holds Unix time in minutes
+-- (29873712 = 19 Oct 2026) and is sent once a minute; the plugin passes each
+-- new value to Clock.onMinute. At start-up we also try to read its current
+-- value so the labels don't have to wait for the first update.
 
 local Clock = {}
+
+Clock.VAR_NAME = "CLOCK_TIME_DATE_MINUTES"
 
 local lastMinutes = nil
 
@@ -13,12 +16,19 @@ function Clock.onMinute(value)
     if type(value) == "number" then lastMinutes = value end
 end
 
--- Returns Unix seconds, or nil if no clock is available yet.
-function Clock.now()
-    local ok, t = pcall(function() return os.time() end)
-    if ok and type(t) == "number" then return t end
-    if lastMinutes then return lastMinutes * 60 end
+-- Read the variable directly (used once, at start-up).
+local function readNow()
+    for _, domain in ipairs({ "VarClient", "VarPlayer" }) do
+        local ok, v = pcall(function() return var[domain][Clock.VAR_NAME].value end)
+        if ok and type(v) == "number" and v > 0 then return v end
+    end
     return nil
+end
+
+-- Returns Unix seconds, or nil if the time isn't known yet.
+function Clock.now()
+    if lastMinutes == nil then lastMinutes = readNow() end
+    return lastMinutes and lastMinutes * 60 or nil
 end
 
 -- "45s ago", "12m ago", "3h ago", "2d ago", or "" if unknown.

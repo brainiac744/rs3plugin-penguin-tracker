@@ -22,26 +22,25 @@ local function failure(req)
     return msg
 end
 
--- Calls onDone(items, runedate) on success, or onDone(nil, nil, message)
--- on failure. items is { [itemNumber] = entry } where entry has the API's
+-- Calls onDone(items) on success, or onDone(nil, message) on failure. items is { [itemNumber] = entry } where entry has the API's
 -- fields: name, disguise, points, location, lastUpdated, updatesAllowed,
 -- type, confinedTo.
 function Locations.fetch(onDone)
     if noPermission() then
-        onDone(nil, nil, "httpAccess permission not granted (try: ppr penguin-tracker)")
+        onDone(nil, "httpAccess permission not granted (try: ppr penguin-tracker)")
         return
     end
 
     local request = HTTPRequest.new(Plugin.urls.pengu, "/locations")
     request:Get(function(req)
         if not req.successful then
-            onDone(nil, nil, failure(req))
+            onDone(nil, failure(req))
             return
         end
 
         local data, err = json.decode(req.data)
         if type(data) ~= "table" then
-            onDone(nil, nil, err or "unexpected response")
+            onDone(nil, err or "unexpected response")
             return
         end
 
@@ -51,7 +50,7 @@ function Locations.fetch(onDone)
             local n = tonumber(key)
             if n and type(entry) == "table" then items[n] = entry end
         end
-        onDone(items, data.runedate)
+        onDone(items)
     end)
 end
 

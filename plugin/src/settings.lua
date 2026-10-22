@@ -41,14 +41,6 @@ pcall(function()
     end
 end)
 
--- The old standalone "highlight" flag from earlier versions.
-pcall(function()
-    local old = PersistentDB:GetBool("highlight")
-    if type(old) == "boolean" and PersistentDB:GetStructuredData(KEY) == nil then
-        values.highlight = old
-    end
-end)
-
 local listeners = {}
 
 function Settings.get(name)

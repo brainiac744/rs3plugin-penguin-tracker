@@ -3,7 +3,8 @@
 -- Everything comes from one player variable, PENG_SPY_SWITCH (VarPlayer 1408).
 -- Its layout was worked out by logging the variable while spying:
 --   bits 0-9    penguins 1-10 (penguin n is bit n-1)
---   bits 16-20  how many penguins you have spied this week (not the bear)
+--   bits 16-20  how many penguins you have spied this week (not the bear;
+--               not used here - the flags already say)
 --   bits 21-25  unknown; same value (23) on two accounts, possibly the week
 --   bit 26      the bear (item 13)
 --   bit 27      penguin 11 (the ghost)
@@ -60,14 +61,23 @@ function Spied.itemsIn(bits)
     return items
 end
 
--- Turns the raw value into { [item] = true/false } plus the penguin count.
+-- Turns the raw value into { [item] = true/false }.
 function Spied.decode(raw)
     local result = {}
     for item, bit in pairs(BIT_FOR_ITEM) do
         result[item] = (raw >> bit) & 1 == 1
     end
-    local count = (raw >> 16) & 0x1F
-    return result, count
+    return result
 end
+
+-- Current spy flags { [item] = true/false }, or nil if they can't be read yet.
+function Spied.current()
+    local raw = Spied.readRaw()
+    return raw and Spied.decode(raw) or nil
+end
+
+-- All the item bits together, for spotting a newly spied item in an update.
+Spied.ITEM_BITS = 0
+for _, bit in pairs(BIT_FOR_ITEM) do Spied.ITEM_BITS = Spied.ITEM_BITS | (1 << bit) end
 
 return Spied

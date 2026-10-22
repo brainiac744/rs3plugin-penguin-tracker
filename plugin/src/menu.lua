@@ -3,24 +3,17 @@
 -- is still there in the right-click menu. Off unless the player turns it on.
 --
 -- Uses Event.MiniMenuReady, where entries can be reordered with Swap. The
--- left-click option is the highest-priority entry; to avoid depending on
--- which end of the list that is, we look at "Walk here", which is always
--- the lowest priority: the default is at the opposite end from it.
+-- left-click option is the highest-priority entry, which the docs put at the
+-- end of the list. As a cross-check we look at "Walk here", always the
+-- lowest priority: the default is at the opposite end from it.
 
 local Settings = require("src/settings")
 local Highlight = require("src/highlight")
+local Log = require("src/log")
 
 local Menu = {}
 
 local EVENT_KEY = "penguin-tracker-menu"
-local reported = {}
-
-local function report(msg)
-    if not reported[msg] then
-        reported[msg] = true
-        print("[penguins] " .. msg)
-    end
-end
 
 local function textOf(entry)
     local ok, t = pcall(function() return tostring(entry.verbText or "") end)
@@ -53,10 +46,10 @@ local function onReady(e)
 
         if isSpyOnPenguin(entries[default]) then
             menu:Swap(default, inward)
-            report("near the points cap: Spy-on is no longer the left-click option")
+            Log.debug("near the points cap: Spy-on is no longer the left-click option")
         end
     end)
-    if not ok then report("menu swap failed: " .. tostring(err)) end
+    if not ok then Log.problem("menu swap failed: " .. tostring(err)) end
 end
 
 function Menu.start()
