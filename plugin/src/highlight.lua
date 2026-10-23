@@ -8,9 +8,9 @@
 -- Which penguin is which: NPCs don't carry their penguin number (all pumpkin
 -- penguins share one config), but each penguin NPC keeps the same UID. So we
 -- keep a UID -> penguin number table, seeded with the UIDs observed in game,
--- and learn new ones: when you spy penguin n and no penguin in view is known
--- to be n, the nearest unrecognised penguin is taken to be n and saved.
--- A penguin's spied state then comes straight from the game's spy flags.
+-- and learn new ones: when you spy penguin n, the penguin you last clicked
+-- Spy-on on is taken to be n and saved (replacing anything it was thought to
+-- be). A penguin's spied state then comes straight from the game's spy flags.
 
 local Settings = require("src/settings")
 local Log = require("src/log")
@@ -48,6 +48,7 @@ local penguins = {}   -- NPCEntity list from the last scan
 local lastCount = nil -- penguins found by the last scan, to report changes
 local spied = {}      -- [penguin number] = true, from the game's spy flags
 local points = nil    -- unspent penguin points, nil if unknown
+local clicked = nil   -- UID of the penguin last clicked with Spy-on, until used
 
 -- UID -> penguin number: the known table plus anything learned (saved).
 local numberFor = {}
@@ -85,15 +86,6 @@ local function isPenguin(npc)
     end)
     if not ok then report("NPC check failed", yes) end
     return ok and yes
-end
-
--- Your character's world position, or nil plus the reason.
--- (Tested in game, standing and walking: this matches PlayerList.Self() and
--- is available as soon as the plugin starts.)
-local function myPosition()
-    local ok, p = pcall(function() return Player.GetEntity().position end)
-    if ok and p then return p end
-    return nil, ok and "not available" or p
 end
 
 local function enabled()
@@ -145,54 +137,59 @@ function Highlight.scan()
     end
 end
 
--- Called with the penguin numbers whose spy flag just turned on. Makes sure
--- each one is linked to an NPC: if no penguin in view is known to be that
--- number, the nearest penguin we don't recognise yet is assumed to be it.
+-- Links penguin number n to the NPC with this UID (replacing whatever that
+-- NPC was thought to be before), and saves it.
+local function learn(n, uid)
+    if numberFor[uid] == n then return end
+    -- Forget any other UID that claimed this number.
+    for other, m in pairs(numberFor) do
+        if m == n then numberFor[other] = nil end
+    end
+    numberFor[uid] = n
+    saveLearned()
+    Log.debug(string.format("highlight: learned penguin %d is NPC %d", n, uid))
+end
+
+-- Called for every menu action the player picks (left-click or right-click
+-- menu). Remembers Spy-on on a penguin, so onSpied knows which NPC it was.
+-- Spy-on is the first option on every penguin disguise (checked against the
+-- game cache).
+function Highlight.onSelected(entry)
+    local ok, err = pcall(function()
+        if entry.actionEntryType ~= MiniMenuEntryType.NPC then return end
+        if entry.actionType ~= MiniMenuActionType.OP_NPC1 then return end
+        local npc = entry.npcData and entry.npcData.entity
+        if npc and isPenguin(npc) then clicked = npc.uid end
+    end)
+    if not ok then report("reading menu click failed", err) end
+end
+
+-- Called with the item numbers whose spy flag just turned on. A penguin can
+-- only be spied by clicking Spy-on, so the penguin last clicked is the one
+-- spied. (A click that didn't lead to a spy, e.g. blocked by a wall, is
+-- simply replaced by the next click.)
 -- Works even with the highlight off, so the table keeps up to date.
 function Highlight.onSpied(numbers)
-    local ok, err = pcall(function()
-        local inView = {}
-        for _, npc in ipairs(NPCList.All()) do
-            if npc.isValid and isPenguin(npc) then inView[#inView + 1] = npc end
+    local penguinNumbers = {}
+    for _, n in ipairs(numbers) do
+        if n < Items.BEAR then -- the bear isn't a PENG_SPY_ NPC
+            penguinNumbers[#penguinNumbers + 1] = n
         end
-        for _, n in ipairs(numbers) do
-            if n < Items.BEAR then -- the bear isn't a PENG_SPY_ NPC
-                local known = false
-                for _, npc in ipairs(inView) do
-                    if numberFor[npc.uid] == n then known = true end
-                end
-                if not known then
-                    -- Nearest penguin we don't recognise. Penguins we already
-                    -- know are never reassigned, so a neighbour can't be mislabelled.
-                    local me, why = myPosition()
-                    if not me then
-                        report("can't find your position", why)
-                        return
-                    end
-                    local best, bestDist = nil, math.huge
-                    for _, npc in ipairs(inView) do
-                        if numberFor[npc.uid] == nil then
-                            local p = npc.position
-                            local d = (p.x - me.x) ^ 2 + (p.z - me.z) ^ 2
-                            if d < bestDist then best, bestDist = npc, d end
-                        end
-                    end
-                    if best then
-                        -- Forget any other UID that claimed this number.
-                        for uid, m in pairs(numberFor) do
-                            if m == n then numberFor[uid] = nil end
-                        end
-                        numberFor[best.uid] = n
-                        saveLearned()
-                        Log.debug(string.format("highlight: learned penguin %d is NPC %d", n, best.uid))
-                    else
-                        Log.problem(string.format("highlight: spied penguin %d, but couldn't tell which NPC it was", n))
-                    end
-                end
-            end
+    end
+    if #penguinNumbers == 0 then return end
+
+    -- One click, one spy: forget the click once it has been used.
+    local uid = clicked
+    clicked = nil
+    if uid and #penguinNumbers == 1 then
+        learn(penguinNumbers[1], uid)
+    else
+        -- No click seen (e.g. the plugin started mid-walk), or several flags
+        -- at once (not possible in normal play).
+        for _, n in ipairs(penguinNumbers) do
+            Log.problem(string.format("highlight: spied penguin %d, but couldn't tell which NPC it was", n))
         end
-    end)
-    if not ok then report("linking spied penguin failed", err) end
+    end
 end
 
 Highlight.isPenguin = isPenguin

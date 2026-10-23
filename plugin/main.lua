@@ -197,6 +197,12 @@ Event.Logic.Subscribe(EVENT_KEY, function(e)
     end
 end)
 
+-- Menu actions (left-click or right-click menu): the highlight remembers
+-- which penguin you clicked Spy-on on, to tell which one you then spied.
+Event.MiniMenuEntrySelected.Subscribe(EVENT_KEY, function(e)
+    Highlight.onSelected(e.entry)
+end)
+
 -- The penguin boxes are redrawn every frame (shapes only last one frame).
 Event.Draw.Subscribe(EVENT_KEY, function()
     Highlight.draw()
@@ -215,6 +221,7 @@ function PluginShutdown()
     Event.GameStateChanged.Unsubscribe(EVENT_KEY)
     Event.VarTransmit.Unsubscribe(EVENT_KEY)
     Event.Logic.Unsubscribe(EVENT_KEY)
+    Event.MiniMenuEntrySelected.Unsubscribe(EVENT_KEY)
     Event.Draw.Unsubscribe(EVENT_KEY)
     Menu.stop()
     Window.close()
