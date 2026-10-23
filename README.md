@@ -53,8 +53,7 @@ The plugin itself is the [`plugin/`](plugin/) folder.
    ```powershell
    New-Item -ItemType Junction -Path "C:\ProgramData\Jagex\RuneScape-BETA\dev_plugins\penguin-tracker" -Target "$PWD\plugin"
    ```
-   (Delete or rename any existing `dev_plugins\penguin-tracker` folder first. In Command Prompt
-   the equivalent is `mklink /J "...\dev_plugins\penguin-tracker" "<checkout>\plugin"`.)
+   (In Command Prompt the equivalent is `mklink /J "...\dev_plugins\penguin-tracker" "<checkout>\plugin"`.)
 2. In game, open the console with **Alt + `** and run:
    ```
    prf
@@ -99,13 +98,11 @@ Requires the **PrettyUI** plugin (installed automatically as a dependency from t
 
 **Banked points** are bits 16–23 of `PENG_SPY_PERM1` (VarPlayer 9543).
 
-Penguin NPCs are named after their disguise (`PENG_SPY_PUMPKIN`, `PENG_SPY_BARREL`, …) and don't
+Penguin NPCs are named after their disguise (`PENG_SPY_PUMPKIN`, `PENG_SPY_BARREL`, etc.) and don't
 carry their penguin number, but each one keeps the same NPC UID. The highlight uses a table of
 UIDs to penguin numbers (in `src/highlight.lua`) and takes each penguin's spied state from the
 flags above. If a penguin's UID isn't in the table, it's learned the first time you spy it: the
-nearest unrecognised penguin is taken to be the one you spied, and the mapping is saved.
-
-More notes on the RuneScape plugin API: [`docs/runescape-plugin-notes.md`](docs/runescape-plugin-notes.md).
+most recent penguin you clicked is taken to be the one you spied, and the mapping is saved.
 
 ## Credits
 

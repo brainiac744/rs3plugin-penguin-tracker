@@ -3,14 +3,14 @@
 -- PENG_SPY_PUMPKIN, PENG_SPY_BARREL, PENG_SPY_SHADOW_PENGUIN - but not the
 -- PENG_SPY_SHELDON_PET pet).
 -- Colours come from Settings: unspied, spied, and a warning colour used for
--- unspied penguins when your points are near the cap (spying would waste some).
+-- unspied penguins when your points are near the cap (spying could waste some).
 --
--- Which penguin is which: NPCs don't carry their penguin number (all pumpkin
--- penguins share one config), but each penguin NPC keeps the same UID. So we
--- keep a UID -> penguin number table, seeded with the UIDs observed in game,
--- and learn new ones: when you spy penguin n, the penguin you last clicked
--- Spy-on on is taken to be n and saved (replacing anything it was thought to
--- be). A penguin's spied state then comes straight from the game's spy flags.
+-- Which penguin is which: NPCs don't carry their penguin number (all penguins
+-- of the same disguise share a config), but each penguin NPC has a different
+-- UID. So we keep a UID -> penguin number table, seeded with the UIDs observed
+-- in game, and learn new ones: when you spy penguin n, the penguin you last
+-- clicked Spy-on on is taken to be n and saved (replacing anything it was thought
+-- to be). A penguin's spied state then comes straight from the game's spy flags.
 
 local Settings = require("src/settings")
 local Log = require("src/log")
@@ -19,8 +19,7 @@ local Items = require("src/items")
 local Highlight = {}
 
 local PREFIX = "PENG_SPY_"
--- NPCs that share the prefix but aren't hiding penguins. Checked against the
--- game cache (Oct 2026): the penguin-spying pet is the only one.
+-- NPCs that share the prefix but aren't hiding penguins.
 local NOT_PENGUINS = {
     PENG_SPY_SHELDON_PET = true,
 }
@@ -152,8 +151,7 @@ end
 
 -- Called for every menu action the player picks (left-click or right-click
 -- menu). Remembers Spy-on on a penguin, so onSpied knows which NPC it was.
--- Spy-on is the first option on every penguin disguise (checked against the
--- game cache).
+-- Spy-on is the first option on every penguin disguise.
 function Highlight.onSelected(entry)
     local ok, err = pcall(function()
         if entry.actionEntryType ~= MiniMenuEntryType.NPC then return end
@@ -172,7 +170,7 @@ end
 function Highlight.onSpied(numbers)
     local penguinNumbers = {}
     for _, n in ipairs(numbers) do
-        if n < Items.BEAR then -- the bear isn't a PENG_SPY_ NPC
+        if n < Items.BEAR then -- the bear isn't a PENG_SPY_ NPC, its a LOC
             penguinNumbers[#penguinNumbers + 1] = n
         end
     end
@@ -228,8 +226,8 @@ function Highlight.draw()
     end
 end
 
--- Forget the NPC list, e.g. after logout or world hop. (The UID table is kept:
--- UIDs have stayed the same across logins.)
+-- Forget the NPC list, e.g. after logout or world hop.
+-- (The UID table is kept because UIDs seem to stay the same across logins.)
 function Highlight.reset()
     penguins = {}
 end

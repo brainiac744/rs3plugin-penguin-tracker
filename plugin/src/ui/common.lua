@@ -9,12 +9,11 @@ local Common = {}
 
 Common.PAD = 6 -- gap between interface parts and the edges
 
--- Colours (from the Alt1 app's dark brown theme), as 0xRRGGBB.
+-- Colours as 0xRRGGBB.
 Common.C = {
     divider  = 0x2E2A20,
     name     = 0xE8D8A8, ghostName = 0xB8C8A8, bearName = 0xC8982E,
-    -- Spied penguins show their name in green, like a completed quest in the
-    -- quest list. Rows stay at full brightness so they don't look disabled.
+    -- Spied penguins show their name in green, like a completed quest.
     spied    = 0x3FD24A,
     num      = 0x7A6E4A, location = 0xA09060, age = 0x5C5238, summary = 0xC8B87C,
     error    = 0xCC5566,

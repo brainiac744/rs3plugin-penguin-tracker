@@ -68,7 +68,7 @@ end)
 local function refresh()
     if fetching then return end
     fetching = true
-    lastFetchTick = currentTick -- the Refresh button also restarts the 30 seconds
+    lastFetchTick = currentTick -- the Refresh button restarts the 30 second count
     status = "updating..."
     redraw()
     Locations.fetch(function(newItems, err)

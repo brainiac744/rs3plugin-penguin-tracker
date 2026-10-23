@@ -1,5 +1,5 @@
 -- The 13 things to spy each week: penguins 1-12 and the polar bear (13).
--- Numbering matches w60pengu.in and what players call them in game.
+-- Numbering matches w60pengu.in and the spy device in game.
 
 local Items = {}
 

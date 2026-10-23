@@ -3,14 +3,11 @@
 -- Everything comes from one player variable, PENG_SPY_SWITCH (VarPlayer 1408).
 -- Its layout was worked out by logging the variable while spying:
 --   bits 0-9    penguins 1-10 (penguin n is bit n-1)
---   bits 16-20  how many penguins you have spied this week (not the bear;
---               not used here - the flags already say)
---   bits 21-25  unknown; same value (23) on two accounts, possibly the week
+--   bits 16-20  how many penguins you have spied this week (not the bear)
+--   bits 21-25  unknown?
 --   bit 26      the bear (item 13)
 --   bit 27      penguin 11 (the ghost)
 --   bit 28      penguin 12
--- Confirmed in game for penguins 1, 6, 7, 11, 12 and the bear; the other
--- penguins are assumed to follow the same bit n-1 pattern.
 
 local Spied = {}
 
@@ -26,10 +23,7 @@ local BIT_FOR_ITEM = {
 Spied.POINTS_VAR_NAME = "PENG_SPY_PERM1"
 
 -- Unspent penguin points (bits 16-23 of PENG_SPY_PERM1, VarPlayer 9543),
--- or nil if they can't be read yet. Confirmed in game: spying adds the
--- penguin's points, turning in 40 points took 40 off, and the value matches
--- the in-game total. (Bits 24 and up hold something else - including them
--- once made 167 points read as 935.)
+-- or nil if they can't be read yet.
 function Spied.readPoints()
     local ok, value = pcall(function()
         return var.VarPlayer.PENG_SPY_PERM1.value

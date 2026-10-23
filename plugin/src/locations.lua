@@ -1,8 +1,7 @@
--- Talks to the w60pengu.in API (the same one the Alt1 app uses):
+-- Talks to api.w60pengu.in:
 --   GET  /locations        current locations for all 13 items
 --   POST /locationConfirm  {"key": n}                 "still there"
 --   POST /locationUpdate   {"key": n, "location": s}  report a new location
--- Needs the httpAccess permission and the "pengu" URL declared in plugin.json.
 
 local json = require("src/json")
 
@@ -27,7 +26,7 @@ end
 -- disguise, points, location, lastUpdated, updatesAllowed, type, confinedTo.
 function Locations.fetch(onDone)
     if noPermission() then
-        onDone(nil, "httpAccess permission not granted (try: ppr penguin-tracker)")
+        onDone(nil, "httpAccess permission not granted")
         return
     end
 

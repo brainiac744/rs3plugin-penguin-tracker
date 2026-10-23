@@ -26,7 +26,7 @@ local OK_W, EDIT_W = 28, 28         -- confirm / edit buttons on line 1
 local PTS_W = 40                    -- points, right of the buttons
 local ICON = 16                     -- size of the icon on each button
 local SAVE_W, CANCEL_W = 44, 56     -- save / cancel buttons while editing
-local MIN_LEN, MAX_LEN = 4, 150     -- location length limits (same as the Alt1 app)
+local MIN_LEN, MAX_LEN = 4, 150     -- location length limits (enforced by the API)
 
 -- Built-in game sprites for the buttons (names from the community catalogue
 -- at github.com/sereselene/rsprite, checked in game).

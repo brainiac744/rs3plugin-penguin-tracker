@@ -2,7 +2,7 @@
 -- Colours are RGBA integers (0xRRGGBBAA), the format both ShapeList and
 -- PrettyUI's colour picker use. They're saved as hex text ("C864FFFF"):
 -- stored numbers come back as floats, which can't hold an 8-digit colour
--- exactly - the last byte (the alpha) got rounded away.
+-- exactly - the last byte (the alpha) can be rounded away.
 
 local Settings = {}
 
