@@ -39,11 +39,15 @@ local currentTick = nil    -- latest Logic tick seen
 
 -- Whether the player wants the window open; saved between sessions.
 local wantOpen = false
-pcall(function() wantOpen = PersistentDB:GetBool(OPEN_KEY) == true end)
+do
+    local ok, err = pcall(function() wantOpen = PersistentDB:GetBool(OPEN_KEY) == true end)
+    if not ok then Log.problem("could not load window state: " .. tostring(err)) end
+end
 
 local function setWantOpen(value)
     wantOpen = value
-    pcall(function() PersistentDB:SetBool(OPEN_KEY, value) end)
+    local ok, err = pcall(function() PersistentDB:SetBool(OPEN_KEY, value) end)
+    if not ok then Log.problem("could not save window state: " .. tostring(err)) end
 end
 
 -- Refresh everything shown from the current game state and locations.
@@ -73,9 +77,15 @@ local function refresh()
     redraw()
     Locations.fetch(function(newItems, err)
         fetching = false
+        -- Started before the first Logic tick: count the 30 seconds from now,
+        -- or the Logic handler would fetch again straight away.
+        if lastFetchTick == nil then lastFetchTick = currentTick end
         if newItems then
             items = newItems
             status = ""
+        elseif not Locations.hasPermission() then
+            -- Optional permission, so expected: say so instead of "failed".
+            status = "needs HTTP access permission"
         else
             status = "update failed"
             Log.problem("location update failed: " .. tostring(err))
@@ -188,7 +198,10 @@ Event.Logic.Subscribe(EVENT_KEY, function(e)
     local tick = e.logicTick
     currentTick = tick
     Clock.onLogic(tick)
-    if tick % 5 == 0 then Window.tick(tick) end     -- 10 times a second
+    if tick % 5 == 0 then                           -- 10 times a second
+        Window.tick(tick)
+        SettingsPage.tick()
+    end
     if tick % 10 == 0 then Highlight.scan() end     -- 5 times a second
     -- Locations are only shown in the window, so only fetch while it's open:
     -- every 30 seconds, and straight away when it's opened after longer.
@@ -210,11 +223,6 @@ end)
 
 Menu.start()
 
--- If we were enabled while already in game, restore the window now.
-if wantOpen then openWindow() end
-
-Log.debug("started")
-
 function PluginShutdown()
     Event.ContentLayerReady.Unsubscribe(EVENT_KEY)
     Event.SettingsLayerReady.Unsubscribe(EVENT_KEY)
@@ -228,3 +236,9 @@ function PluginShutdown()
     Sidebar.close()
     SettingsPage.close()
 end
+
+-- If we were enabled while already in game, restore the window now. (Last,
+-- so PluginShutdown is defined even if something here goes wrong.)
+if wantOpen then openWindow() end
+
+Log.debug("started")

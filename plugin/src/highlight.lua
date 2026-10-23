@@ -52,23 +52,34 @@ local clicked = nil   -- UID of the penguin last clicked with Spy-on, until used
 -- UID -> penguin number: the known table plus anything learned (saved).
 local numberFor = {}
 for uid, n in pairs(KNOWN_UIDS) do numberFor[uid] = n end
-pcall(function()
-    local learned = PersistentDB:GetStructuredData(MAP_KEY)
-    if type(learned) == "table" then
+do
+    local ok, err = pcall(function()
+        local saved = PersistentDB:GetStructuredData(MAP_KEY)
+        if type(saved) ~= "table" then return end
         -- stored as { ["82350"] = 1, ... }; numbers come back as floats
-        for k, v in pairs(learned) do
+        local learned, claimed = {}, {}
+        for k, v in pairs(saved) do
             local uid, n = math.tointeger(tonumber(k)), math.tointeger(tonumber(v))
-            if uid and n then numberFor[uid] = n end
+            if uid and n then learned[uid], claimed[n] = n, true end
         end
-    end
-end)
+        -- As in learn(): a learned UID replaces the known one for the same
+        -- penguin. Only differences from KNOWN_UIDS are saved, so the known
+        -- one has to be dropped here or it would come back on every load.
+        for uid, n in pairs(KNOWN_UIDS) do
+            if claimed[n] and learned[uid] == nil then numberFor[uid] = nil end
+        end
+        for uid, n in pairs(learned) do numberFor[uid] = n end
+    end)
+    if not ok then report("could not load learned penguins", err) end
+end
 
 local function saveLearned()
     local out = {}
     for uid, n in pairs(numberFor) do
         if KNOWN_UIDS[uid] ~= n then out[tostring(uid)] = n end
     end
-    pcall(function() PersistentDB:SetStructuredData(MAP_KEY, out) end)
+    local ok, err = pcall(function() PersistentDB:SetStructuredData(MAP_KEY, out) end)
+    if not ok then report("could not save learned penguins", err) end
 end
 
 local function hidingPenguinName(name)
@@ -149,15 +160,24 @@ local function learn(n, uid)
     Log.debug(string.format("highlight: learned penguin %d is NPC %d", n, uid))
 end
 
+-- The penguin NPC a menu entry would Spy-on, or nil if it's anything else.
+-- Matched on the action, not the menu text, which is translated in other
+-- client languages: Spy-on is the first option on every penguin disguise.
+-- May raise an error if the entry can't be read; callers wrap it in pcall.
+function Highlight.spyOnTarget(entry)
+    if entry.actionEntryType ~= MiniMenuEntryType.NPC then return nil end
+    if entry.actionType ~= MiniMenuActionType.OP_NPC1 then return nil end
+    local npc = entry.npcData and entry.npcData.entity
+    if npc and isPenguin(npc) then return npc end
+    return nil
+end
+
 -- Called for every menu action the player picks (left-click or right-click
 -- menu). Remembers Spy-on on a penguin, so onSpied knows which NPC it was.
--- Spy-on is the first option on every penguin disguise.
 function Highlight.onSelected(entry)
     local ok, err = pcall(function()
-        if entry.actionEntryType ~= MiniMenuEntryType.NPC then return end
-        if entry.actionType ~= MiniMenuActionType.OP_NPC1 then return end
-        local npc = entry.npcData and entry.npcData.entity
-        if npc and isPenguin(npc) then clicked = npc.uid end
+        local npc = Highlight.spyOnTarget(entry)
+        if npc then clicked = npc.uid end
     end)
     if not ok then report("reading menu click failed", err) end
 end
@@ -189,8 +209,6 @@ function Highlight.onSpied(numbers)
         end
     end
 end
-
-Highlight.isPenguin = isPenguin
 
 local function isSpiedNPC(npc)
     local n = numberFor[npc.uid]
@@ -226,10 +244,13 @@ function Highlight.draw()
     end
 end
 
--- Forget the NPC list, e.g. after logout or world hop.
--- (The UID table is kept because UIDs seem to stay the same across logins.)
+-- Forget the NPC list and any unused Spy-on click, e.g. after logout or
+-- world hop. (A click from before would otherwise be matched to whatever
+-- spy flags arrive on login. The UID table is kept because UIDs seem to
+-- stay the same across logins.)
 function Highlight.reset()
     penguins = {}
+    clicked = nil
 end
 
 return Highlight

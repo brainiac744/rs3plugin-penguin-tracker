@@ -3,9 +3,8 @@
 -- is still there in the right-click menu. Off unless the player turns it on.
 --
 -- Uses Event.MiniMenuReady, where entries can be reordered with Swap. The
--- left-click option is the highest-priority entry, which the docs put at the
--- end of the list. As a cross-check we look at "Walk here", always the
--- lowest priority: the default is at the opposite end from it.
+-- entries list is in reverse of the visible menu: the last entry is the top
+-- of the right-click menu and the left-click option (checked in game).
 
 local Settings = require("src/settings")
 local Highlight = require("src/highlight")
@@ -15,18 +14,8 @@ local Menu = {}
 
 local EVENT_KEY = "penguin-tracker-menu"
 
-local function textOf(entry)
-    local ok, t = pcall(function() return tostring(entry.verbText or "") end)
-    return ok and t or ""
-end
-
 local function isSpyOnPenguin(entry)
-    local ok, yes = pcall(function()
-        if not textOf(entry):find("Spy", 1, true) then return false end
-        local npc = entry.npcData and entry.npcData.entity
-        return npc ~= nil and Highlight.isPenguin(npc)
-    end)
-    return ok and yes
+    return Highlight.spyOnTarget(entry) ~= nil
 end
 
 local function onReady(e)
@@ -35,18 +24,17 @@ local function onReady(e)
         local menu = e.miniMenu
         local entries = menu.entries
         local count = #entries
-        if count < 2 then return end
+        if count < 2 or not isSpyOnPenguin(entries[count]) then return end
 
-        local walk = nil
-        for i, entry in ipairs(entries) do
-            if textOf(entry):find("Walk here", 1, true) then walk = i end
-        end
-        local default = (walk == 1) and count or (walk == count and 1 or count)
-        local inward = (default == count) and (count - 1) or 2
-
-        if isSpyOnPenguin(entries[default]) then
-            menu:Swap(default, inward)
-            Log.debug("near the points cap: Spy-on is no longer the left-click option")
+        -- Swap in the nearest entry below that isn't Spy-on on a penguin
+        -- (usually "Walk here"). With several penguins under the mouse,
+        -- swapping with the next entry would just put another Spy-on on top.
+        for i = count - 1, 1, -1 do
+            if not isSpyOnPenguin(entries[i]) then
+                menu:Swap(count, i)
+                Log.debug("near the points cap: Spy-on is no longer the left-click option")
+                return
+            end
         end
     end)
     if not ok then Log.problem("menu swap failed: " .. tostring(err)) end

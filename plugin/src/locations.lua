@@ -7,8 +7,13 @@ local json = require("src/json")
 
 local Locations = {}
 
+-- Whether the player has allowed the optional httpAccess permission.
+function Locations.hasPermission()
+    return Plugin.HasPermission(PluginPermissions.httpAccess)
+end
+
 local function noPermission()
-    return not Plugin.HasPermission(PluginPermissions.httpAccess)
+    return not Locations.hasPermission()
 end
 
 -- Short reason for a failed request.

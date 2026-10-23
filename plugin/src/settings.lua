@@ -4,6 +4,8 @@
 -- stored numbers come back as floats, which can't hold an 8-digit colour
 -- exactly - the last byte (the alpha) can be rounded away.
 
+local Log = require("src/log")
+
 local Settings = {}
 
 local KEY = "settings"
@@ -25,21 +27,24 @@ local values = {}
 for k, v in pairs(DEFAULTS) do values[k] = v end
 
 -- Load saved values; older saves just miss newer keys, which keep defaults.
-pcall(function()
-    local saved = PersistentDB:GetStructuredData(KEY)
-    if type(saved) ~= "table" then return end
-    for k, default in pairs(DEFAULTS) do
-        local v = saved[k]
-        if type(default) == "boolean" and type(v) == "boolean" then
-            values[k] = v
-        elseif type(default) == "number" and type(v) == "string" then
-            values[k] = tonumber(v, 16) or default -- colours, saved as hex
-        elseif type(default) == "number" and type(v) == "number" then
-            -- numbers come back from storage as floats
-            values[k] = math.tointeger(math.floor(v)) or default
+do
+    local ok, err = pcall(function()
+        local saved = PersistentDB:GetStructuredData(KEY)
+        if type(saved) ~= "table" then return end
+        for k, default in pairs(DEFAULTS) do
+            local v = saved[k]
+            if type(default) == "boolean" and type(v) == "boolean" then
+                values[k] = v
+            elseif type(default) == "number" and type(v) == "string" then
+                values[k] = tonumber(v, 16) or default -- colours, saved as hex
+            elseif type(default) == "number" and type(v) == "number" then
+                -- numbers come back from storage as floats
+                values[k] = math.tointeger(math.floor(v)) or default
+            end
         end
-    end
-end)
+    end)
+    if not ok then Log.problem("could not load settings: " .. tostring(err)) end
+end
 
 local listeners = {}
 
@@ -63,8 +68,13 @@ end
 function Settings.set(name, value)
     if DEFAULTS[name] == nil or values[name] == value then return end
     values[name] = value
-    pcall(function() PersistentDB:SetStructuredData(KEY, forStorage()) end)
-    for _, fn in ipairs(listeners) do pcall(fn, name, value) end
+    local ok, err = pcall(function() PersistentDB:SetStructuredData(KEY, forStorage()) end)
+    if not ok then Log.problem("could not save settings: " .. tostring(err)) end
+    -- One failing listener mustn't stop the others hearing about the change.
+    for _, fn in ipairs(listeners) do
+        local fine, problem = pcall(fn, name, value)
+        if not fine then Log.problem("reacting to setting " .. name .. " failed: " .. tostring(problem)) end
+    end
 end
 
 -- fn(name, value) is called after any setting changes.

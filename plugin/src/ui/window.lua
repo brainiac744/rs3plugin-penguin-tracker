@@ -154,7 +154,7 @@ local function updateRow(r, n, entry, isSpied)
     end
     -- "(spied)" as well as the colour, so it doesn't rely on colour alone.
     if isSpied then name = name .. "  (spied)" end
-    r.name.content = name
+    r.name.content = Common.plainText(name)
     r.name.colour = hex(isSpied and C.spied
         or kind == "ghost" and C.ghostName or kind == "bear" and C.bearName or C.name)
 
@@ -166,7 +166,7 @@ local function updateRow(r, n, entry, isSpied)
             loc = loc .. "  (" .. tostring(entry.confinedTo) .. ")"
         end
     end
-    r.location.content = loc
+    r.location.content = Common.plainText(loc)
 
     if rowError[n] then
         r.age.content = "failed"
@@ -178,6 +178,7 @@ local function updateRow(r, n, entry, isSpied)
 
     -- Confirm/edit only for items the API accepts updates for.
     local canEdit = entry ~= nil and entry.updatesAllowed == true
+    r.canEdit = canEdit -- for finishEdit
     setRowButtons(r, canEdit and editing[n] == nil, not busy[n])
     if not canEdit and editing[n] then finishEdit(n) end
 end
@@ -235,10 +236,13 @@ end
 ---------------------------------------------------------------------------
 
 local savedGeometry = nil -- { x, y, width, height } relative to the game area
-pcall(function()
-    local g = PersistentDB:GetStructuredData(GEOMETRY_KEY)
-    if type(g) == "table" and g.width and g.height and g.x and g.y then savedGeometry = g end
-end)
+do
+    local ok, err = pcall(function()
+        local g = PersistentDB:GetStructuredData(GEOMETRY_KEY)
+        if type(g) == "table" and g.width and g.height and g.x and g.y then savedGeometry = g end
+    end)
+    if not ok then Log.problem("could not load window position: " .. tostring(err)) end
+end
 local lastSeen = nil      -- geometry at the last check
 local changedTick = nil   -- when it last changed (nil = nothing unsaved)
 
@@ -300,7 +304,8 @@ local function saveGeometry()
     local g = currentGeometry()
     if g and not sameGeometry(g, savedGeometry) then
         savedGeometry = g
-        pcall(function() PersistentDB:SetStructuredData(GEOMETRY_KEY, g) end)
+        local ok, err = pcall(function() PersistentDB:SetStructuredData(GEOMETRY_KEY, g) end)
+        if not ok then Log.problem("could not save window position: " .. tostring(err)) end
     end
     changedTick = nil
 end
@@ -350,44 +355,53 @@ function Window.open(h)
                   width = WINDOW_W, height = WINDOW_H }
     end
 
-    local window = prettyui.Window.new(gameArea, {
-        title = "Penguin Tracker",
-        width = place.width, height = place.height,
-        x = place.x, y = place.y, xAnchor = place.xAnchor, yAnchor = place.yAnchor,
-        minWidth = MIN_W, minHeight = MIN_H,
-        resizable = true,
-        scrollable = true,
-        contentHeight = TOP_H + Items.COUNT * ROW_H,
-        destroyOnClose = true,
-        onClose = function()
-            saveGeometry() -- while the window can still report where it is
-            win, editing, measuredWidth = nil, {}, nil
-            h.closed()     -- then, with it gone (so the sidebar says "Show")
-        end,
-    })
+    -- Built inside pcall: if any part fails, destroy what was made rather
+    -- than leave a half-built window on screen that nothing can close.
+    local window, w
+    local ok, err = pcall(function()
+        window = prettyui.Window.new(gameArea, {
+            title = "Penguin Tracker",
+            width = place.width, height = place.height,
+            x = place.x, y = place.y, xAnchor = place.xAnchor, yAnchor = place.yAnchor,
+            minWidth = MIN_W, minHeight = MIN_H,
+            resizable = true,
+            scrollable = true,
+            contentHeight = TOP_H + Items.COUNT * ROW_H,
+            destroyOnClose = true,
+            onClose = function()
+                saveGeometry() -- while the window can still report where it is
+                win, editing, measuredWidth = nil, {}, nil
+                h.closed()     -- then, with it gone (so the sidebar says "Show")
+            end,
+        })
 
-    local content = window.content
-    local w = { window = window, rows = {} }
+        local content = window.content
+        w = { window = window, rows = {} }
 
-    -- Summary strip with the refresh button.
-    local top = ui.Layer.new(content)
-    top:SetPos(0, 0)
-    top:SetSize(0, TOP_H, 1.0, 0)
+        -- Summary strip with the refresh button.
+        local top = ui.Layer.new(content)
+        top:SetPos(0, 0)
+        top:SetSize(0, TOP_H, 1.0, 0)
 
-    w.summary = newText(top)
-    w.summary:SetPos(PAD, 0)
-    w.summary:SetSize(-(PAD + REFRESH_W + 8), TOP_H, 1.0, 0)
-    w.summary.colour = hex(C.summary)
+        w.summary = newText(top)
+        w.summary:SetPos(PAD, 0)
+        w.summary:SetSize(-(PAD + REFRESH_W + 8), TOP_H, 1.0, 0)
+        w.summary.colour = hex(C.summary)
 
-    local refresh = newButton(top, "Refresh", function() h.refresh() end)
-    refresh:SetPos(-(PAD + REFRESH_W), 3, 1.0, 0)
-    refresh:SetSize(REFRESH_W, TOP_H - 6)
+        local refresh = newButton(top, "Refresh", function() h.refresh() end)
+        refresh:SetPos(-(PAD + REFRESH_W), 3, 1.0, 0)
+        refresh:SetSize(REFRESH_W, TOP_H - 6)
 
-    for n = 1, Items.COUNT do
-        w.rows[n] = buildRow(content, n, TOP_H + (n - 1) * ROW_H)
+        for n = 1, Items.COUNT do
+            w.rows[n] = buildRow(content, n, TOP_H + (n - 1) * ROW_H)
+        end
+        window:SetContentHeight(TOP_H + Items.COUNT * ROW_H)
+        window:Show()
+    end)
+    if not ok then
+        if window then pcall(function() window:Destroy() end) end
+        return false, err
     end
-    window:SetContentHeight(TOP_H + Items.COUNT * ROW_H)
-    window:Show()
 
     -- PrettyUI's sizes might not match the frame exactly (e.g. if the title
     -- bar is counted differently), so note the difference now and allow for
@@ -417,7 +431,8 @@ function Window.close()
     saveGeometry()
     local w = win
     win, editing, measuredWidth = nil, {}, nil
-    pcall(function() w.window:Destroy() end)
+    local ok, err = pcall(function() w.window:Destroy() end)
+    if not ok then Log.problem("could not close window: " .. tostring(err)) end
 end
 
 function Window.isOpen()
@@ -493,14 +508,16 @@ function finishEdit(n)
         local r = win.rows[n]
         r.location.hidden = false
         r.age.hidden = false
-        setRowButtons(r, true) -- only editable rows can be edited
+        -- Updates may have stopped being allowed while editing.
+        setRowButtons(r, r.canEdit == true)
     end
 end
 
 -- Checks the text and hands it to the plugin to send.
 function Window.saveEdit(n, text)
     local e = editing[n]
-    if not e then return end
+    -- busy: already sent. Save is disabled then, but Enter in the box isn't.
+    if not e or busy[n] then return end
     text = tostring(text or ""):match("^%s*(.-)%s*$")
     if #text < MIN_LEN then
         -- The hint only shows in an empty box, so clear the few characters typed.

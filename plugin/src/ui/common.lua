@@ -39,6 +39,14 @@ function Common.newText(parent)
     return t
 end
 
+-- Text from the w60pengu.in API is written by players, but the game reads
+-- tags such as <col=ff0000> or <br> in any text it shows. Swap < and > for
+-- the game's <lt> and <gt> tags so the text shows exactly as typed.
+local TAG_CHARS = { ["<"] = "<lt>", [">"] = "<gt>" }
+function Common.plainText(s)
+    return (tostring(s):gsub("[<>]", TAG_CHARS))
+end
+
 -- A standard game-styled button.
 function Common.newButton(parent, label, onPress)
     local b = ui.Button.new(parent)
