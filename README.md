@@ -35,9 +35,6 @@ ones you have already spied by reading your progress from the game.
 4. Settings are on the plugin's settings page (**Plugin Hub › Manage**, then Penguin Tracker's
    settings icon): turn the highlight on, pick its colours, and set up the points-cap warning.
 
-Points never change: penguins 1–5 are worth 1, 6–10 and 12 are worth 2, penguin 11 (the ghost)
-is worth 3, and the bear is worth 1.
-
 ## Permissions
 
 The plugin asks for **HTTP access** so it can read and update locations on
